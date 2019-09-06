@@ -18,12 +18,13 @@
 package opennlp.tools.languagemodel;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
+import opennlp.tools.ngram.NgramDictionary;
+import opennlp.tools.ngram.NgramDictionaryCompressed;
+import opennlp.tools.ngram.NgramDictionaryHashed;
 import opennlp.tools.util.Cache;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.StringList;
@@ -33,22 +34,39 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
   private final int DEFAULT_N = 3;
   private final String DEFAULT_SMOOTHING = "Chen-Goodman";
-
+  private final boolean compressDictionary;
   private final NgramDictionary ngrams;
   private final int n;
-  private final String smoothing;
   private final Cache<String[], Double> LRUCache;
+  private final NgramEstimator ngramEstimator;
 
   public SmoothedNgramLanguageModel(String language, int n, String smoothing,
-                                    NgramDictionary ngrams) {
+                                    NgramDictionary ngrams, Boolean compressDictionary) {
     super("smoothed Ngram model", language, null);
     this.n = n;
     this.ngrams = ngrams;
-    this.smoothing = smoothing;
+
+    if (smoothing == null) {
+      this.ngramEstimator = new NgramEstimator(DEFAULT_SMOOTHING, ngrams);
+    } else {
+      this.ngramEstimator = new NgramEstimator(smoothing, ngrams);
+    }
+
+    this.compressDictionary = compressDictionary;
+
     //todo: make the cache capacity smarter (e.g. cover x% of the data)
     this.LRUCache = new Cache<>(1000);
+
   }
 
+  /**
+   * Train an ngram model with predefined smoothing
+   *
+   * @param in
+   * @param factory
+   * @return
+   * @throws IOException
+   */
   public static SmoothedNgramLanguageModel train(ObjectStream<String[]> in,
                                                  NgramLMFactory factory) throws IOException {
 
@@ -57,11 +75,19 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     Map<String, Integer> dictionary = buildDictionary(in);
 
     System.out.println("Collecting ngrams");
-    NgramDictionary ngrams = collectNgrams(in, dictionary, factory.getNgramSize());
+    NgramDictionary ngrams = collectNgrams(in, dictionary, factory.getNgramSize(),
+        factory.getCompression());
 
-    return new SmoothedNgramLanguageModel(factory.getSmoothing(), 3, factory.getSmoothing(), ngrams);
+    return new SmoothedNgramLanguageModel(factory.getSmoothing(), 3, factory.getSmoothing(),
+        ngrams, factory.getCompression());
   }
 
+  /**
+   * Creates a dictionary of the words in the corpus
+   * @param in A stream of tokenized documents
+   * @return A dictionary assigning each token an integer alias
+   * @throws IOException If it fails to read the input
+   */
   private static Map<String, Integer> buildDictionary(ObjectStream<String[]> in) throws IOException {
 
     class Token implements Comparable<Token> {
@@ -118,102 +144,74 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
   }
 
+  /**
+   * Collects the ngrams found in the corpus, notes their size
+   * @param in A stream of tokenized documents
+   * @param dictionary A dictionary assigning each token an integer alias
+   * @param ngramSize The maximum size of ngrams to be collected (lower order n-grams will be
+   *                  included
+   * @param compressedDictionary Should the ngrams be stored in a way that minimizes space?
+   * @return A dictionary assigning each ngram a count
+   * @throws IOException If it fails to read the input
+   */
   private static NgramDictionary collectNgrams(ObjectStream<String[]> in, Map<String,
-      Integer> dictionary, Integer ngramSize) throws IOException {
+      Integer> dictionary, Integer ngramSize, Boolean compressedDictionary) throws IOException {
 
-    NgramDictionary ngrams = new NgramDictionary(ngramSize, dictionary);
+    NgramDictionary ngrams;
 
-    //add all ngrams of size 1<=n<=N from each array returned by the input stream
-    //assume arrays are independent, do not go over their boundary
+    if (compressedDictionary) {
+      ngrams = new NgramDictionaryCompressed(ngramSize, dictionary);
+    } else {
+      ngrams = new NgramDictionaryHashed(ngramSize, dictionary);}
+
     String[] next = in.read();
 
-    int readSentences = 0;
-    int readWords = 0;
-    long startTime = System.currentTimeMillis();
-    long lastReportTime = startTime;
-    List<Integer> speeds = new ArrayList<>();
-    List<Long> times = new ArrayList<>();
     while (next != null) {
-      long reportWindow = System.currentTimeMillis() - lastReportTime;
-      if (reportWindow > 1000) {
-        speeds.add(readWords);
-        times.add(reportWindow);
-        lastReportTime = System.currentTimeMillis();
-      }
-//      if (readSentences % 100 == 0){
-//        System.out.println("\tSentences: " + readSentences);
-//      }
-//      if (readWords % 10000 == 0){
-//        System.out.println("\tWords: " + readWords);
-//      }
-      //go backwards to create the words in the first round
-      for (int n = ngramSize; n > 0; n--) {
+
+      for (int n = 1; n <= ngramSize; n++) {
         for (int i = 0; i + n <= next.length; i++) {
           ngrams.add(next, i, i + n);
         }
       }
-      readWords += next.length;
-      readSentences++;
       next = in.read();
-
     }
 
-    long endTime = System.currentTimeMillis();
-    System.out.println("Processed " + readWords + "words " +
-        "in " + (endTime - startTime) / 1000 + " seconds.\nPerformance stats:" +
-        "Words/second: " + readWords / ((endTime - startTime) / 1000) +
-        "\nSentences/second: " + readSentences / ((endTime - startTime) / 1000) +
-        "\nwords/sentence: " + readWords / readSentences);
-//    for (int i=1; i < times.size();i++){
-//      System.out.println(i + ": " + (double) (speeds.get(i)-speeds.get(i-1))/times.get(i) + " wps");
-//    }
-    System.out.println();
-    //todo: ngrams.compress();
-    //System.out.println(ngrams.toString());
+    //todo: find a more elegant way of compressing?
+    // How to do this without adding the method compress() to the interface?
+    if (compressedDictionary) {
+      try {
+        NgramDictionaryCompressed ngramsCompressible = (NgramDictionaryCompressed) ngrams;
+        ngramsCompressible.compress();
+        ngrams = ngramsCompressible;
+      } catch (Exception e) {
+        System.err.println(e.getMessage() + "\n" + Arrays.toString(e.getStackTrace()));
+      }
+    }
+
+    //todo: make the ngram dictionary immutable
+
     return ngrams;
 
   }
 
-
   @Deprecated
   public double calculateProbability(StringList tokens) {
-    return 0;
+    String[] tokenArray = new String[tokens.size()];
+    for (int i = 0; i < tokens.size(); i++) {
+      tokenArray[i] = tokens.getToken(i);
+    }
+    return calculateProbability(tokenArray);
   }
 
   @Override
   public double calculateProbability(String... tokens) {
-//    if (LRUCache.containsKey(tokens)) {
-//      return LRUCache.get(tokens);
-//    }
-    double prob;
-    switch (smoothing) {
-      case "Chen-Goodman":
-        prob = chenGoodman(tokens);
-        break;
-      default:
-        prob = maximumLikelihood(tokens);
-        break;
+    if (LRUCache.containsKey(tokens)) {
+      return LRUCache.get(tokens);
     }
-//    LRUCache.put(tokens, prob);
+    double prob = ngramEstimator.calculateProbability(tokens);
+    LRUCache.put(tokens, prob);
     return prob;
-  }
 
-  private double chenGoodman(String... tokens) {
-    double prob = maximumLikelihood(tokens);//todo: implement chen-goodman
-
-    return prob;
-  }
-
-  private double maximumLikelihood(String... tokens) {
-    double c = ngrams.get(tokens, 0, tokens.length);
-    if (c == 0) {
-      return c;
-    }
-    if (tokens.length > 1) {
-      return c / ngrams.get(tokens, 0, tokens.length - 1);
-    } else {
-      return c / 100000;
-    }
   }
 
   @Deprecated

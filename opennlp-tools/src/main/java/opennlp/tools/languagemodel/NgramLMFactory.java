@@ -33,10 +33,12 @@ public class NgramLMFactory extends BaseToolFactory {
 
   private String languageCode;
   private String smoothing = "Chen-Goodman";
+  private static final String COMPRESSION = "compression";
   private Integer ngramSize;
 
   private static final String NGRAM_SIZE = "ngramSize";
   private static final String SMOOTHING = "smoothing";
+  private Boolean compression = false;
 
   /**
    * Creates a {@link opennlp.tools.languagemodel.NgramLMFactory} that provides the default implementation
@@ -45,18 +47,39 @@ public class NgramLMFactory extends BaseToolFactory {
   public NgramLMFactory() {
   }
 
+  public NgramLMFactory(String languageCode,
+                        int ngramDepth, String smoothing, Boolean compression) {
+    this.init(languageCode, ngramDepth, smoothing, compression);
+  }
 
   public NgramLMFactory(String languageCode,
                         int ngramDepth, String smoothing) {
-    this.init(languageCode, ngramDepth, smoothing);
+    this.init(languageCode, ngramDepth, smoothing, false);
   }
 
-  protected void init(String languageCode, Integer ngramDepth, String smoothing) {
-    this.languageCode = languageCode;
-    this.ngramSize = ngramDepth;
-    if (smoothing != null) {
-      //todo: check that the smoothing is a valid one
-      this.smoothing = smoothing;
+  public static opennlp.tools.languagemodel.NgramLMFactory create(String subclassName,
+                                                                  String languageCode,
+                                                                  Integer ngramSize,
+                                                                  String smoothing,
+                                                                  Boolean compression)
+      throws InvalidFormatException {
+    if (subclassName == null) {
+      // will create the default factory
+      return new opennlp.tools.languagemodel.NgramLMFactory(languageCode, ngramSize,
+          smoothing);
+    }
+    try {
+      opennlp.tools.languagemodel.NgramLMFactory theFactory = ExtensionLoader.instantiateExtension(
+          opennlp.tools.languagemodel.NgramLMFactory.class, subclassName);
+      theFactory.init(languageCode, ngramSize,
+          smoothing, compression);
+      return theFactory;
+    } catch (Exception e) {
+      String msg = "Could not instantiate the " + subclassName
+          + ". The initialization throw an exception.";
+      System.err.println(msg);
+      e.printStackTrace();
+      throw new InvalidFormatException(msg, e);
     }
   }
 
@@ -69,6 +92,18 @@ public class NgramLMFactory extends BaseToolFactory {
 
   }
 
+  protected void init(String languageCode, Integer ngramDepth, String smoothing,
+                      Boolean compression) {
+    this.languageCode = languageCode;
+    this.ngramSize = ngramDepth;
+    if (smoothing != null) {
+      //todo: check that the smoothing is a valid one
+      this.smoothing = smoothing;
+    }
+    if (compression != null) {
+      this.compression = compression;
+    }
+  }
 
   @Override
   public Map<String, String> createManifestEntries() {
@@ -80,33 +115,14 @@ public class NgramLMFactory extends BaseToolFactory {
     manifestEntries.put(SMOOTHING,
         getSmoothing());
 
+    manifestEntries.put(COMPRESSION,
+        Boolean.toString(getCompression()));
+
     return manifestEntries;
   }
 
-
-  public static opennlp.tools.languagemodel.NgramLMFactory create(String subclassName,
-                                                                  String languageCode,
-                                                                  Integer ngramSize,
-                                                                  String smoothing)
-      throws InvalidFormatException {
-    if (subclassName == null) {
-      // will create the default factory
-      return new opennlp.tools.languagemodel.NgramLMFactory(languageCode, ngramSize,
-          smoothing);
-    }
-    try {
-      opennlp.tools.languagemodel.NgramLMFactory theFactory = ExtensionLoader.instantiateExtension(
-          opennlp.tools.languagemodel.NgramLMFactory.class, subclassName);
-      theFactory.init(languageCode, ngramSize,
-          smoothing);
-      return theFactory;
-    } catch (Exception e) {
-      String msg = "Could not instantiate the " + subclassName
-          + ". The initialization throw an exception.";
-      System.err.println(msg);
-      e.printStackTrace();
-      throw new InvalidFormatException(msg, e);
-    }
+  public Boolean getCompression() {
+    return compression;
   }
 
   /**
