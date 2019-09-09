@@ -168,7 +168,7 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
     while (next != null) {
 
-      for (int n = 1; n <= ngramSize; n++) {
+      for (int n = ngramSize; n > 0; n--) {
         for (int i = 0; i + n <= next.length; i++) {
           ngrams.add(next, i, i + n);
         }

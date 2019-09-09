@@ -109,7 +109,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
   final int NUMBER_OF_LEVELS;
   final Map<String, Integer> wordToID;
   final Map<Integer, String> IDToWord;
-  private final DictionaryNode root;
+  private DictionaryNode root;
   private int vocabularySize = 0;
 
   /**
@@ -275,4 +275,9 @@ public class NgramDictionaryHashed implements NgramDictionary {
     }
     return id;
   }
+
+  void removeRoot() {
+    root = null;
+  }
+
 }

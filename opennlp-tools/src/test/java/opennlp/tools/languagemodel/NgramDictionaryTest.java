@@ -95,7 +95,8 @@ public class NgramDictionaryTest {
 
   @Test
   public void getCount() {
-    NgramDictionaryCompressed t = new NgramDictionaryCompressed(3, null);
+    NgramDictionaryCompressed t = new NgramDictionaryCompressed(5, null);
+    t.add(new String[] {"A", "B", "C", "D", "E"});
     t.add(new String[] {"A", "B", "C"});
     t.add(new String[] {"B", "C", "D"});
     t.add(new String[] {"A", "B"});
@@ -108,15 +109,16 @@ public class NgramDictionaryTest {
     t.add(new String[] {"D"});
 
     t.compress();
+    System.out.println(t.toString());
 
     assertEquals(1, (int) t.get(new String[] {"D"}));
     assertEquals(2, (int) t.get(new String[] {"B", "C"}));
     assertEquals(1, (int) t.get(new String[] {"B", "C", "D"}));
     assertEquals(0, (int) t.get(new String[] {"D", "C", "D"}));
-    assertEquals(0, (int) t.get(new String[] {"E"}));
     assertEquals(2, (int) t.get(new String[] {"B", "C", "D"}, 0, 2));
     assertEquals(1, (int) t.get(new String[] {"B", "C", "D"}, 0, 1));
-
+    assertEquals(1, (int) t.get(new String[] {"A", "B", "C", "D", "E"}));
+    assertEquals(0, (int) t.get(new String[] {"A", "B", "C", "D", "F"}));
 
     NgramDictionaryHashed th = new NgramDictionaryHashed(3, null);
     th.add(new String[] {"A", "B", "C"});
