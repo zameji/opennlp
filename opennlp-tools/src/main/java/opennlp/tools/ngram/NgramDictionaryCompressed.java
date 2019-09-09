@@ -1,6 +1,7 @@
 package opennlp.tools.ngram;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -8,32 +9,19 @@ import java.util.Map;
 
 public class NgramDictionaryCompressed extends NgramDictionaryHashed {
 
-  private final List[] gramIDs;
-  private final List[] pointers;
-  //  private final List[] compressedLevels;
-//  private final int[][] decompressionL;
-  private final List[] counts;
+  private final int[][] gramIDsArrayRaw;
+  private final int[][] pointersArrayRaw;
+  private final int[][] countsArrayRaw;
 
   public NgramDictionaryCompressed(int ngram, Map<String, Integer> dictionary) {
 
     super(ngram, dictionary);
 
     //Create the structure for compression, leave it empty for now
-    gramIDs = new List[NUMBER_OF_LEVELS];
-    pointers = new List[NUMBER_OF_LEVELS];
-//    compressedLevels = new List[NUMBER_OF_LEVELS];
-//    decompressionL = new int[NUMBER_OF_LEVELS][2];
-    counts = new List[NUMBER_OF_LEVELS];
 
-    for (int n = 0; n < NUMBER_OF_LEVELS; n++) {
-      List<Integer> currentGramIDs = new ArrayList<Integer>();
-      List<Integer> currentPointers = new ArrayList<Integer>();
-      currentPointers.add(0);  //set the start & end pointers
-
-      gramIDs[n] = currentGramIDs;
-      pointers[n] = currentPointers;
-      counts[n] = new ArrayList<Integer>();
-    }
+    gramIDsArrayRaw = new int[NUMBER_OF_LEVELS][];
+    pointersArrayRaw = new int[NUMBER_OF_LEVELS][];
+    countsArrayRaw = new int[NUMBER_OF_LEVELS][];
   }
 
   @Override
@@ -53,8 +41,8 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
     childNode = currentToken;
 
     //todo: get the compression working
-    int startIndex = (int) pointers[0].get(childNode);
-    int endIndex = (int) pointers[0].get(childNode + 1);
+    int startIndex = (int) pointersArrayRaw[0][childNode];
+    int endIndex = (int) pointersArrayRaw[0][childNode + 1];
 
     for (int i = 1; i < end - start; i++) {
 
@@ -65,17 +53,17 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
         return 0;
       }
 
-      childNode = findIndex(gramIDs[i], currentToken, startIndex, endIndex);
+      childNode = findIndex(gramIDsArrayRaw[i], currentToken, startIndex, endIndex);
       if (childNode == -1) {
         return 0;
       }
 
       if (i < end - start - 1) {
-        startIndex = (int) pointers[i].get(childNode);
-        endIndex = (int) pointers[i].get(childNode + 1);
+        startIndex = (int) pointersArrayRaw[i][childNode];
+        endIndex = (int) pointersArrayRaw[i][childNode + 1];
       }
     }
-    return (int) counts[end - start - 1].get(childNode);
+    return (int) countsArrayRaw[end - start - 1][childNode];
 
   }
 
@@ -87,9 +75,9 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
   @Override
   public int getCorpusSize() {
     int size = 0;
-    int lemmaCount = counts[0].size();
+    int lemmaCount = countsArrayRaw[0].length;
     for (int i = 0; i < lemmaCount; i++) {
-      size += (int) counts[0].get(i);
+      size += (int) countsArrayRaw[0][i];
     }
     return size;
   }
@@ -102,7 +90,7 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
    */
   @Override
   public int getNGramCount(int gramSize) {
-    return gramIDs[gramSize].size();
+    return gramIDsArrayRaw[gramSize].length;
   }
 
   /**
@@ -115,8 +103,8 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
   @Override
   public int getNGramCount(int gramSize, int frequency) {
     int totalCount = 0;
-    for (int i = 0; i < counts[gramSize - 1].size(); i++) {
-      int currentCount = (int) counts[gramSize - 1].get(i);
+    for (int i = 0; i < countsArrayRaw[gramSize - 1].length; i++) {
+      int currentCount = countsArrayRaw[gramSize - 1][i];
       if (currentCount == frequency) {
         totalCount++;
       }
@@ -125,52 +113,27 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
     return totalCount;
   }
 
-/*
-  Once compression works, we'll need to search in arrays, too
-  private int findIndex(int[] ls, Integer key, Integer low, Integer high) {
-
-    if (low > high) {
-      return -1;
-    }
-    if (high - low == 1 && ls[low] == key) {
-      return low;
-    } else if (high - low == 1) {
-      return high;
-    }
-
-    int median = (low + high) / 2;
-    if (ls[median] == key) {
-      return median;
-    } else if (ls[median] < key) {
-      return findIndex(ls, key, median, high);
-    } else {
-      return findIndex(ls, key, low, median);
-    }
-
-  }
-*/
-
-  private int findIndex(List<Integer> ls, Integer key, Integer low, Integer high) {
-
+  private int findIndex(int[] arr, Integer key, Integer low, Integer high) {
 
     int middle = (low + high) / 2;
     if (high < low) {
       return -1;
     }
 
-    if (key == (int) ls.get(middle)) {
+    if (key == arr[middle]) {
       return middle;
-    } else if (key < (int) ls.get(middle)) {
+    } else if (key < arr[middle]) {
       return findIndex(
-          ls, key, low, middle);
+          arr, key, low, middle);
     } else {
       return findIndex(
-          ls, key, middle + 1, high);
+          arr, key, middle + 1, high);
     }
 
   }
 
-  private void addChild(DictionaryNode child, int level) {
+  private void addChild(DictionaryNode child, int level, List[] gramIDsList, List[] pointersList,
+                        List[] countsList) {
     if (level >= NUMBER_OF_LEVELS) {
       return;
     }
@@ -184,12 +147,13 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
 //    int previousId = (levels[level][0].size() > 0) ?
 //        (int) levels[level][0].get(levels[level][0].size() - 1) : 0;
 
-    gramIDs[level].add(child.getId());
-    pointers[level].add((int) pointers[level].get(pointers[level].size() - 1) + childCount);
-    counts[level].add(child.getCount());
+    gramIDsList[level].add(child.getId());
+    pointersList[level].add((int) pointersList[level].get(pointersList[level].size() - 1) + childCount);
+    countsList[level].add(child.getCount());
 
     for (DictionaryNode currentChild : currentNodeChildren) {
-      addChild(currentChild, level + 1);
+      addChild(currentChild, level + 1, gramIDsList, pointersList,
+          countsList);
     }
   }
 
@@ -201,14 +165,45 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
    */
   public void compress() {
 
+    List[] gramIDsList = new List[NUMBER_OF_LEVELS];
+    List[] pointersList = new List[NUMBER_OF_LEVELS];
+    List[] countsList = new List[NUMBER_OF_LEVELS];
+
+    for (int n = 0; n < NUMBER_OF_LEVELS; n++) {
+      List<Integer> currentGramIDs = new ArrayList<Integer>();
+      List<Integer> currentPointers = new ArrayList<Integer>();
+      currentPointers.add(0);  //set the start & end pointers
+
+      gramIDsList[n] = currentGramIDs;
+      pointersList[n] = currentPointers;
+      countsList[n] = new ArrayList<Integer>();
+
+    }
+
     DictionaryNode root = super.getRoot();
     List<DictionaryNode> currentNodeChildren = root.getChildren();
     Collections.sort(currentNodeChildren);
+
+
     for (DictionaryNode child : currentNodeChildren) {
-      addChild(child, 0);
+      addChild(child, 0, gramIDsList, pointersList,
+          countsList);
       root.removeChild(child.getId());
     }
     super.removeRoot();
+
+    for (int n = 0; n < NUMBER_OF_LEVELS; n++) {
+      List<Integer> temp = gramIDsList[n];
+      gramIDsArrayRaw[n] = temp.stream().mapToInt(k -> k).toArray();
+      temp = pointersList[n];
+      pointersArrayRaw[n] = temp.stream().mapToInt(k -> k).toArray();
+      temp = countsList[n];
+      countsArrayRaw[n] = temp.stream().mapToInt(k -> k).toArray();
+    }
+
+    gramIDsList = null;
+    pointersList = null;
+    countsList = null;
 
     //todo: get the compression working
 //
@@ -239,14 +234,14 @@ public class NgramDictionaryCompressed extends NgramDictionaryHashed {
     String rep = "";
     for (int i = 0; i < NUMBER_OF_LEVELS; i++) {
       rep += "CH: [";
-      for (int j = 0; j < gramIDs[i].size() - 1; j++) {
-        rep += IDToWord.get(gramIDs[i].get(j)) + ", ";
+      for (int j = 0; j < gramIDsArrayRaw[i].length - 1; j++) {
+        rep += IDToWord.get(gramIDsArrayRaw[i][j]) + ", ";
 //        rep += levels[i][0].get(j) + ", ";
       }
-      rep += IDToWord.get(gramIDs[i].get(gramIDs[i].size() - 1)) + "]";
+      rep += IDToWord.get(gramIDsArrayRaw[i][gramIDsArrayRaw[i].length - 1]) + "]";
       rep += "\n";
-      rep += "PN: " + pointers[i].toString() + "\n";
-      rep += "CN: " + counts[i].toString() + "\n";
+      rep += "PN: " + Arrays.toString(pointersArrayRaw[i]) + "\n";
+      rep += "CN: " + Arrays.toString(countsArrayRaw[i]) + "\n";
     }
 
     return rep;
