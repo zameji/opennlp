@@ -19,18 +19,28 @@ package opennlp.tools.ngram;
 
 public interface NgramDictionary {
 
-  public int getCorpusSize();
+  int getCorpusSize();
 
-  public int getNGramCount(int gram);
+  //get number of distinct ngrams at level n (optionally with frequency = freq or
+  // minfreq <= freq <= maxfreq, i.e. freq in [minfreq, maxfreq)
+  int getNGramCount(int n);
 
-  public int getNGramCount(int gram, int frequency);
+  int getNGramCount(int n, int minfreq, int maxfreq);
 
-  public void add(String... gram);
+  int getNGramCountSum(int n);
 
-  public void add(String[] gram, Integer start, Integer end);
+  int getSiblingCount(String... childNgram);
 
-  public int get(String... gram);
+  int getSiblingCount(String[] arrayWithChildNgram, int start, int end);
 
-  public int get(String[] gram, int start, int end);
+  int getSiblingCount(String[] arrayWithChildNgram, int start, int end, int minfreq, int maxfreq);
+
+  void add(String... gram);
+
+  void add(String[] gram, Integer start, Integer end);
+
+  int get(String... gram);
+
+  int get(String[] gram, int start, int end);
 
 }

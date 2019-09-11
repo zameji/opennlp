@@ -31,7 +31,7 @@ public class NgramDictionaryTest {
 
   @Test
   public void test_uncompressed() {
-    NgramDictionaryHashed t = new NgramDictionaryHashed(3, null);
+    NgramDictionaryHashed t = new NgramDictionaryHashed(null);
     String[] s = new String[] {"A", "B", "C", "D"};
     t.add(s, 0, 3);
     t.add(s, 1, 4);
@@ -50,7 +50,7 @@ public class NgramDictionaryTest {
     dict.put("C", 2);
     dict.put("D", 3);
 
-    t = new NgramDictionaryHashed(3, dict);
+    t = new NgramDictionaryHashed(dict);
     String[] trigrams = new String[] {"A", "AA", "AAC", "AC", "B", "BB", "BBC", "BBD",
         "BC", "BCD", "BD", "CA", "CD", "DB", "DBB", "DBC", "DDD"};
     for (String trigram : trigrams) {
@@ -120,7 +120,7 @@ public class NgramDictionaryTest {
     assertEquals(1, (int) t.get(new String[] {"A", "B", "C", "D", "E"}));
     assertEquals(0, (int) t.get(new String[] {"A", "B", "C", "D", "F"}));
 
-    NgramDictionaryHashed th = new NgramDictionaryHashed(3, null);
+    NgramDictionaryHashed th = new NgramDictionaryHashed(null);
     th.add(new String[] {"A", "B", "C"});
     th.add(new String[] {"B", "C", "D"});
     th.add(new String[] {"A", "B"});

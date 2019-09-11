@@ -17,8 +17,8 @@
 
 package opennlp.tools.languagemodel;
 
-
 import java.util.Map;
+
 
 import opennlp.tools.util.BaseToolFactory;
 import opennlp.tools.util.InvalidFormatException;
@@ -31,13 +31,12 @@ import opennlp.tools.util.ext.ExtensionLoader;
  */
 public class NgramLMFactory extends BaseToolFactory {
 
-  private String languageCode;
-  private String smoothing = "Chen-Goodman";
   private static final String COMPRESSION = "compression";
-  private Integer ngramSize;
-
   private static final String NGRAM_SIZE = "ngramSize";
   private static final String SMOOTHING = "smoothing";
+  private String languageCode;
+  private String smoothing = "Chen-Goodman";
+  private Integer ngramSize;
   private Boolean compression = false;
 
   /**
