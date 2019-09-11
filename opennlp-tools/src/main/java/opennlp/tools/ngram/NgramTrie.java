@@ -1,34 +1,13 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package opennlp.tools.ngram;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
-import java.util.TreeMap;
-
-
-import opennlp.tools.util.Cache;
+import java.util.Map;
 
 class NgramTrie implements Comparable<NgramTrie> {
 
-  private final Cache<List<Integer>, Integer> childCache = new Cache(4);
-  private final TreeMap<Integer, NgramTrie> children = new TreeMap<>();
+  private final Map<Integer, NgramTrie> children = new HashMap<>();
   private final int id;
   private int count = 0;
 
@@ -83,44 +62,32 @@ class NgramTrie implements Comparable<NgramTrie> {
     if (depth == 1) {
       //todo: we could return just children.size(), assuming that all n-grams are also
       // represented as n-1 grams, n-2 grams etc.
-//      return getChildrenCount(depth, 1, Integer.MAX_VALUE);
-      return children.size();
+      return getChildrenCount(depth, 1, Integer.MAX_VALUE);
     } else {
       int childrenCount = 0;
-      for (NgramTrie child : children.values()) {
-        childrenCount += child.getChildrenCount(depth - 1, 1, Integer.MAX_VALUE);
+      for (Map.Entry<Integer, NgramTrie> child : children.entrySet()) {
+        childrenCount += child.getValue().getChildrenCount(depth - 1, 1, Integer.MAX_VALUE);
       }
       return childrenCount;
     }
   }
 
+
   public int getChildrenCount(int depth, int minfreq, int maxfreq) {
-    List<Integer> request = new ArrayList<>();
-    request.add(depth);
-    request.add(minfreq);
-    request.add(maxfreq);
-
-    if (childCache.containsKey(request)) {
-      return childCache.get(request);
-    }
-
     if (depth == 1) {
       int relevantChildren = 0;
-      for (NgramTrie child : children.values()) {
-        int c = child.getCount();
+      for (Map.Entry<Integer, NgramTrie> child : children.entrySet()) {
+        int c = child.getValue().getCount();
         if (minfreq <= c && c <= maxfreq) {
           relevantChildren++;
         }
       }
-      childCache.put(request, relevantChildren);
       return relevantChildren;
     } else {
       int relevantChildren = 0;
-      for (NgramTrie child : children.values()) {
-        relevantChildren += child.getChildrenCount(depth - 1, minfreq, maxfreq);
+      for (Map.Entry<Integer, NgramTrie> child : children.entrySet()) {
+        relevantChildren += child.getValue().getChildrenCount(depth - 1, minfreq, maxfreq);
       }
-
-      childCache.put(request, relevantChildren);
       return relevantChildren;
     }
   }
@@ -137,8 +104,12 @@ class NgramTrie implements Comparable<NgramTrie> {
     return id;
   }
 
-  public Collection<NgramTrie> getChildren() {
-    return children.values();
+  public List<NgramTrie> getChildren() {
+    List<NgramTrie> childrenList = new ArrayList<>();
+    for (Map.Entry<Integer, NgramTrie> child : children.entrySet()) {
+      childrenList.add(child.getValue());
+    }
+    return childrenList;
   }
 
   @Override

@@ -1,25 +1,7 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package opennlp.tools.ngram;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -30,12 +12,13 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   private final int NUMBER_OF_LEVELS;
   private final Map<String, Integer> wordToID;
   private final Map<Integer, String> IDToWord;
-  private final int[][] gramIDsArrayRaw;
-  private final int[][] pointersArrayRaw;
-  private final int[][] countsArrayRaw;
   private NgramTrie root;
   private int vocabularySize = 0;
   private boolean compressed = false;
+  
+  private final int[][] gramIDsArrayRaw;
+  private final int[][] pointersArrayRaw;
+  private final int[][] countsArrayRaw;
 
   public NgramDictionaryCompressed(int ngram, Map<String, Integer> dictionary) {
 
@@ -251,9 +234,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
     int siblings = 0;
     for (int i = startPointer; i < endPointer; i++) {
-      if (minfreq <= countsArrayRaw[level][i] &&
-          countsArrayRaw[level][i] <= maxfreq &&
-          countsArrayRaw[level][i] > 0) {
+      if (minfreq <= countsArrayRaw[level][i] && countsArrayRaw[level][i] <= maxfreq && countsArrayRaw[level][i] > 0) {
         siblings++;
       }
     }
@@ -296,7 +277,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
   private int findIndex(int[] arr, Integer key, Integer low, Integer high) {
 
-    int middle = (low + high) >>> 1;
+    int middle = (low + high) / 2;
     if (high < low) {
       return -1;
     }
@@ -313,26 +294,23 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
   }
 
-  private void addChild(NgramTrie node, int level, List[] gramIDsList, List[] pointersList,
+  private void addChild(NgramTrie child, int level, List[] gramIDsList, List[] pointersList,
                         List[] countsList) {
     if (level >= NUMBER_OF_LEVELS) {
       return;
     }
 
     //start at the first node in the vocabulary that is present
-    Collection<NgramTrie> children = node.getChildren();
-    List<NgramTrie> childrenList = new ArrayList<>();
-    for (NgramTrie child : children) {
-      childrenList.add(child);
-    }
-    Collections.sort(childrenList);
-    int childCount = childrenList.size();
+    List<NgramTrie> currentNodeChildren = child.getChildren();
+    Collections.sort(currentNodeChildren);
 
-    gramIDsList[level].add(node.getId());
+    int childCount = currentNodeChildren.size();
+
+    gramIDsList[level].add(child.getId());
     pointersList[level].add((int) pointersList[level].get(pointersList[level].size() - 1) + childCount);
-    countsList[level].add(node.getCount());
+    countsList[level].add(child.getCount());
 
-    for (NgramTrie currentChild : childrenList) {
+    for (NgramTrie currentChild : currentNodeChildren) {
       addChild(currentChild, level + 1, gramIDsList, pointersList,
           countsList);
     }
@@ -361,17 +339,13 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
     }
 
-    Collection<NgramTrie> children = root.getChildren();
-    List<NgramTrie> childrenList = new ArrayList<>();
-    for (NgramTrie child : children) {
-      childrenList.add(child);
-    }
-    Collections.sort(childrenList);
+    List<NgramTrie> currentNodeChildren = root.getChildren();
+    Collections.sort(currentNodeChildren);
 
-    for (NgramTrie child : childrenList) {
+
+    for (NgramTrie child : currentNodeChildren) {
       addChild(child, 0, gramIDsList, pointersList,
           countsList);
-
       root.removeChild(child.getId());
     }
 

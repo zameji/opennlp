@@ -17,8 +17,8 @@
 
 package opennlp.tools.ngram;
 
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class NgramDictionaryHashed implements NgramDictionary {
@@ -53,11 +53,9 @@ public class NgramDictionaryHashed implements NgramDictionary {
    */
   @Override
   public int getCorpusSize() {
-
-    Collection<NgramTrie> children = root.getChildren();
-
+    List<NgramTrie> unigrams = root.getChildren();
     int size = 0;
-    for (NgramTrie unigram : children) {
+    for (NgramTrie unigram : unigrams) {
       size += unigram.getCount();
     }
     return size;
@@ -71,7 +69,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
   /**
    * Get the number of various ngram of a given size and frequency
    *
-   * @param depth   The size of the ngram (i.e. n)
+   * @param depth  The size of the ngram (i.e. n)
    * @param minfreq The minimum frequency with which the ngram should occur
    * @param maxfreq The maximum frequency with which the ngram should occur
    * @return The number of various ngrams of this size
@@ -89,15 +87,13 @@ public class NgramDictionaryHashed implements NgramDictionary {
   private int getNGramCountSum(int n, NgramTrie node) {
     int sum = 0;
     if (n == 1) {
-
-      Collection<NgramTrie> children = node.getChildren();
+      List<NgramTrie> children = node.getChildren();
       for (NgramTrie child : children) {
         sum += child.getCount();
       }
-
       return sum;
     } else {
-      Collection<NgramTrie> children = node.getChildren();
+      List<NgramTrie> children = node.getChildren();
       for (NgramTrie child : children) {
         sum += getNGramCountSum(n - 1, child);
       }
@@ -177,7 +173,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
    * Add a new ngram to the dictionary (or increase its count by one).
    * The ngram is defined as a range of strings within a larger document
    *
-   * @param gram  The document in which the ngram is located
+   * @param gram   The document in which the ngram is located
    * @param start Start of the ngram
    * @param end   End of the ngram
    */

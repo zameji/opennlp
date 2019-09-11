@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-
 import opennlp.tools.ngram.NgramDictionary;
 import opennlp.tools.ngram.NgramDictionaryCompressed;
 import opennlp.tools.ngram.NgramDictionaryHashed;
@@ -33,8 +32,8 @@ import opennlp.tools.util.model.BaseModel;
 
 public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel {
 
-  private static final int DEFAULT_N = 3;
-  private static final String DEFAULT_SMOOTHING = "Chen-Goodman";
+  private final int DEFAULT_N = 3;
+  private final String DEFAULT_SMOOTHING = "Chen-Goodman";
   private final boolean compressDictionary;
   private final NgramDictionary ngrams;
   private final int n;
@@ -50,7 +49,6 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     if (smoothing == null) {
       this.ngramEstimator = new NgramEstimator(DEFAULT_SMOOTHING, ngrams, n);
     } else {
-      System.out.println("Smoothed model of " + n + "-grams");
       this.ngramEstimator = new NgramEstimator(smoothing, ngrams, n);
     }
 
@@ -80,14 +78,12 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     NgramDictionary ngrams = collectNgrams(in, dictionary, factory.getNgramSize(),
         factory.getCompression());
 
-    return new SmoothedNgramLanguageModel(factory.getSmoothing(), factory.getNgramSize(),
-        factory.getSmoothing(),
+    return new SmoothedNgramLanguageModel(factory.getSmoothing(), 3, factory.getSmoothing(),
         ngrams, factory.getCompression());
   }
 
   /**
    * Creates a dictionary of the words in the corpus
-   *
    * @param in A stream of tokenized documents
    * @return A dictionary assigning each token an integer alias
    * @throws IOException If it fails to read the input
@@ -150,11 +146,10 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
   /**
    * Collects the ngrams found in the corpus, notes their size
-   *
-   * @param in                   A stream of tokenized documents
-   * @param dictionary           A dictionary assigning each token an integer alias
-   * @param ngramSize            The maximum size of ngrams to be collected (lower order n-grams will be
-   *                             included
+   * @param in A stream of tokenized documents
+   * @param dictionary A dictionary assigning each token an integer alias
+   * @param ngramSize The maximum size of ngrams to be collected (lower order n-grams will be
+   *                  included
    * @param compressedDictionary Should the ngrams be stored in a way that minimizes space?
    * @return A dictionary assigning each ngram a count
    * @throws IOException If it fails to read the input
@@ -217,6 +212,7 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     double prob = ngramEstimator.calculateProbability(tokens);
     LRUCache.put(tokens, prob);
     return prob;
+
   }
 
   @Deprecated
