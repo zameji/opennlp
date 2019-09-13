@@ -20,6 +20,7 @@ package opennlp.uima.parser;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.parser.ParserModel;
 import opennlp.uima.util.AbstractModelResource;
 

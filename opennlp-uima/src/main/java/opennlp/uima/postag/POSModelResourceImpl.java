@@ -20,6 +20,7 @@ package opennlp.uima.postag;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.postag.POSModel;
 import opennlp.uima.util.AbstractModelResource;
 

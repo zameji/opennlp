@@ -15,17 +15,15 @@
  * limitations under the License.
  */
 
-package opennlp.tools.languagemodel;
+package opennlp.tools.ngram;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.Test;
-
-import opennlp.tools.ngram.NgramDictionaryCompressed;
-import opennlp.tools.ngram.NgramDictionaryHashed;
 
 import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 public class NgramDictionaryTest {
 
@@ -119,6 +117,11 @@ public class NgramDictionaryTest {
     assertEquals(1, (int) t.get(new String[] {"B", "C", "D"}, 0, 1));
     assertEquals(1, (int) t.get(new String[] {"A", "B", "C", "D", "E"}));
     assertEquals(0, (int) t.get(new String[] {"A", "B", "C", "D", "F"}));
+
+    t.add("B", "C");
+    t.add("D", "C", "D");
+//    assertEquals(3, (int) t.get(new String[] {"B", "C"}));
+    assertEquals(1, (int) t.get(new String[] {"D", "C", "D"}));
 
     NgramDictionaryHashed th = new NgramDictionaryHashed(null);
     th.add(new String[] {"A", "B", "C"});

@@ -23,6 +23,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+
+import opennlp.tools.util.Span;
+import opennlp.uima.util.AnnotationComboIterator;
+import opennlp.uima.util.AnnotationIteratorPair;
+import opennlp.uima.util.AnnotatorUtil;
+import opennlp.uima.util.UimaUtil;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_component.CasAnnotator_ImplBase;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -33,12 +40,6 @@ import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Level;
 import org.apache.uima.util.Logger;
-
-import opennlp.tools.util.Span;
-import opennlp.uima.util.AnnotationComboIterator;
-import opennlp.uima.util.AnnotationIteratorPair;
-import opennlp.uima.util.AnnotatorUtil;
-import opennlp.uima.util.UimaUtil;
 
 abstract class AbstractNameFinder extends CasAnnotator_ImplBase {
 

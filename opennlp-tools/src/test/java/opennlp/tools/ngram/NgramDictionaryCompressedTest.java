@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -82,14 +81,14 @@ public class NgramDictionaryCompressedTest {
   public void testGetNGramCount() {
     assertEquals(1, ngramDictionary.getNGramCount(1, 4, 5));
     assertEquals(2, ngramDictionary.getNGramCount(1, 3, 4));
-    assertEquals(1, ngramDictionary.getNGramCount(1, 0, 1));
+    assertEquals(1, ngramDictionary.getNGramCount(1, 1, 1));
 
     assertEquals(2, ngramDictionary.getNGramCount(2, 1, 2));
-    assertEquals(1, ngramDictionary.getNGramCount(2, 0, 1));
+    assertEquals(1, ngramDictionary.getNGramCount(2, 1, 1));
     assertEquals(0, ngramDictionary.getNGramCount(2, 5, 6));
 
     assertEquals(3, ngramDictionary.getNGramCount(3, 2, 5));
-    assertEquals(1, ngramDictionary.getNGramCount(3, 0, 1));
+    assertEquals(1, ngramDictionary.getNGramCount(3, 1, 1));
   }
 
   @Test
@@ -114,9 +113,9 @@ public class NgramDictionaryCompressedTest {
   public void testGetSiblingCount1() {
     assertEquals(1, ngramDictionary.getSiblingCount(new String[] {"A"}, 0, 1, 2, 2));
     assertEquals(4, ngramDictionary.getSiblingCount(new String[] {"B", "F"}, 1, 2, 1, 5));
-    assertEquals(3, ngramDictionary.getSiblingCount(new String[] {"B", "C", "A"}, 0, 2, 0, 5));
+    assertEquals(3, ngramDictionary.getSiblingCount(new String[] {"B", "C", "A"}, 0, 2, 1, 5));
     assertEquals(0, ngramDictionary.getSiblingCount(new String[] {"D", "B", "A"}, 0, 3, 0, 0));
-    assertEquals(0, ngramDictionary.getSiblingCount(new String[] {"A", "F", "B"}, 0, 3, 0, 5));
+    assertEquals(0, ngramDictionary.getSiblingCount(new String[] {"A", "F", "B"}, 0, 3, 1, 5));
 
     assertEquals(1, ngramDictionary.getSiblingCount(new String[] {"A", "B", "F"}, 0, 3, 1, 1));
     assertEquals(0, ngramDictionary.getSiblingCount(new String[] {"A", "B", "F"}, 0, 3, 2, 2));
@@ -139,13 +138,13 @@ public class NgramDictionaryCompressedTest {
     assertEquals(1, ngramDictionary.get(new String[] {"A", "B", "C"}, 1, 3));
   }
 
-  @Ignore
+
   @Test
   public void testAdd() {
     ngramDictionary.add(new String[] {"A", "B", "F"}, 0, 3);
-    assertEquals(ngramDictionary.get(new String[] {"A", "B", "F"}, 0, 3), 0);
-    assertEquals(ngramDictionary.get(new String[] {"F"}, 0, 1), 1);
-    assertEquals(ngramDictionary.get(new String[] {"A", "F", "B"}, 0, 2), 0);
+    assertEquals(1, ngramDictionary.get(new String[] {"A", "B", "F"}, 0, 3));
+    assertEquals(0, ngramDictionary.get(new String[] {"F"}, 0, 1));
+    assertEquals(0, ngramDictionary.get(new String[] {"A", "F", "B"}, 0, 2));
   }
 
 

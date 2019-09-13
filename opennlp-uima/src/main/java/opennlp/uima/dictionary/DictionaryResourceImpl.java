@@ -20,6 +20,7 @@ package opennlp.uima.dictionary;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.dictionary.Dictionary;
 import opennlp.uima.util.AbstractModelResource;
 

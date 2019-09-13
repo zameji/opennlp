@@ -20,6 +20,7 @@ package opennlp.uima.tokenize;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.tokenize.TokenizerModel;
 import opennlp.uima.util.AbstractModelResource;
 

@@ -20,6 +20,7 @@ package opennlp.uima.chunker;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.chunker.ChunkerModel;
 import opennlp.uima.util.AbstractModelResource;
 

@@ -23,10 +23,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
-
 import org.junit.Assert;
 import org.junit.Test;
 

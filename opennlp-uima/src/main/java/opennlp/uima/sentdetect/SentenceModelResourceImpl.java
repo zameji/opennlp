@@ -20,6 +20,7 @@ package opennlp.uima.sentdetect;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.sentdetect.SentenceModel;
 import opennlp.uima.util.AbstractModelResource;
 

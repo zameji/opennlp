@@ -20,6 +20,7 @@ package opennlp.uima.util;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import org.apache.uima.resource.DataResource;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.resource.SharedResourceObject;

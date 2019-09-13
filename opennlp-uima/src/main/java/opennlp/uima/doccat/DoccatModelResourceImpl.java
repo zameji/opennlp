@@ -20,6 +20,7 @@ package opennlp.uima.doccat;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.doccat.DoccatModel;
 import opennlp.uima.util.AbstractModelResource;
 

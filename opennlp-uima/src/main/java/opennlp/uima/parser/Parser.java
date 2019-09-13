@@ -23,6 +23,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+
+import opennlp.tools.parser.Parse;
+import opennlp.tools.parser.ParserFactory;
+import opennlp.tools.parser.ParserModel;
+import opennlp.tools.util.Span;
+import opennlp.uima.util.AnnotatorUtil;
+import opennlp.uima.util.ContainingConstraint;
+import opennlp.uima.util.UimaUtil;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_component.CasAnnotator_ImplBase;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -37,14 +46,6 @@ import org.apache.uima.resource.ResourceAccessException;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Level;
 import org.apache.uima.util.Logger;
-
-import opennlp.tools.parser.Parse;
-import opennlp.tools.parser.ParserFactory;
-import opennlp.tools.parser.ParserModel;
-import opennlp.tools.util.Span;
-import opennlp.uima.util.AnnotatorUtil;
-import opennlp.uima.util.ContainingConstraint;
-import opennlp.uima.util.UimaUtil;
 
 /**
  * Abstract base class for OpenNLP Parser annotators.

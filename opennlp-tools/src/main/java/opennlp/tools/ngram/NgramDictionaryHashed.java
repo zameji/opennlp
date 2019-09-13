@@ -165,7 +165,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
    * @param gram The ngram to add
    */
   @Override
-  public void add(String[] gram) {
+  public void add(String... gram) {
     add(gram, 0, gram.length);
   }
 

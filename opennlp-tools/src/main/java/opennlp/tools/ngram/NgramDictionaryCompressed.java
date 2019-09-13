@@ -1,7 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package opennlp.tools.ngram;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -12,13 +30,12 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   private final int NUMBER_OF_LEVELS;
   private final Map<String, Integer> wordToID;
   private final Map<Integer, String> IDToWord;
-  private NgramTrie root;
-  private int vocabularySize = 0;
-  private boolean compressed = false;
-  
   private final int[][] gramIDsArrayRaw;
   private final int[][] pointersArrayRaw;
   private final int[][] countsArrayRaw;
+  private NgramTrie root;
+  private int vocabularySize = 0;
+  private boolean compressed = false;
 
   public NgramDictionaryCompressed(int ngram, Map<String, Integer> dictionary) {
 
@@ -139,17 +156,17 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   public int getSiblingCount(String[] ngram, int start, int end) {
 
     if (end - start == 1) {
-      int siblings = 0;
-      for (int child : countsArrayRaw[0]) {
-        if (child > 0) {
-          siblings++;
-        }
-      }
-      return siblings;
+//      int siblings = 0;
+//      for (int child : countsArrayRaw[0]) {
+//        if (child > 0) {
+//          siblings++;
+//        }
+//      }
+//      return siblings;
+      return countsArrayRaw.length;
     }
 
     Integer wordId = wordToID.get(ngram[start]);
-
     if (wordId == null) {
       return 0;
     }
@@ -161,14 +178,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     endPointer = pointersArrayRaw[0][wordIndex + 1];
 
     int level = 1;
-    while (end - (start + level) > 1) {
+    while (end - (start + level) > 1 && startPointer != endPointer) {
       wordId = wordToID.get(ngram[level + start]);
       if (wordId == null) {
         return 0;
-      }
-
-      if (startPointer == endPointer) {
-        break;
       }
 
       wordIndex = findIndex(gramIDsArrayRaw[level], wordId, startPointer, endPointer);
@@ -179,6 +192,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
       startPointer = pointersArrayRaw[level][wordIndex];
       endPointer = pointersArrayRaw[level][wordIndex + 1];
       level++;
+
     }
 
     return endPointer - startPointer;
@@ -188,7 +202,9 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
   @Override
   public int getSiblingCount(String[] ngram, int start, int end, int minfreq, int maxfreq) {
-
+    if (minfreq < 1) {
+      System.err.println("You are counting n-grams with frequency < 1. This may produce unexpected results.");
+    }
     if (end - start == 1) {
       int siblings = 0;
       for (int child : countsArrayRaw[0]) {
@@ -212,14 +228,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     endPointer = pointersArrayRaw[0][wordIndex + 1];
 
     int level = 1;
-    while (end - (start + level) > 1) {
+    while (end - (start + level) > 1 && startPointer != endPointer) {
       wordId = wordToID.get(ngram[level + start]);
       if (wordId == null) {
         return 0;
-      }
-
-      if (startPointer == endPointer) {
-        break;
       }
 
       wordIndex = findIndex(gramIDsArrayRaw[level], wordId, startPointer, endPointer);
@@ -234,7 +246,8 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
     int siblings = 0;
     for (int i = startPointer; i < endPointer; i++) {
-      if (minfreq <= countsArrayRaw[level][i] && countsArrayRaw[level][i] <= maxfreq && countsArrayRaw[level][i] > 0) {
+      if (minfreq <= countsArrayRaw[level][i] &&
+          countsArrayRaw[level][i] <= maxfreq) {
         siblings++;
       }
     }
@@ -248,7 +261,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
    * @param gram The ngram to add
    */
   @Override
-  public void add(String[] gram) {
+  public void add(String... gram) {
     add(gram, 0, gram.length);
   }
 
@@ -263,7 +276,12 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   @Override
   public void add(String[] gram, Integer start, Integer end) {
     if (compressed) {
-      System.err.println("Could not add n-gram into compressed array. Compress only after adding.");
+      if (end - start > NUMBER_OF_LEVELS) {
+        System.err.println("Adding failed: n-gram too long");
+        return;
+      }
+      addIntoCompressed(gram, start, end);
+
       return;
     }
 
@@ -275,9 +293,60 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     root.addChildren(gramInt);
   }
 
+  private void addIntoCompressed(String[] gram, int start, int end) {
+    int parentNode = 0;
+    int rangeStart = 0;
+    int rangeEnd = gramIDsArrayRaw[0].length;
+    for (int gramIndex = 0; gramIndex < end - start; gramIndex++) {
+
+      int wordID = getWordID(gram[gramIndex + start]);    //get current word's ID
+
+      int childNode = -1;
+      if (rangeEnd - rangeStart > 0) {
+        childNode = findIndex(gramIDsArrayRaw[gramIndex], wordID, rangeStart, rangeEnd) + rangeStart;
+      }
+
+      if (childNode - rangeStart > -1) {
+        //word found, proceed to its children
+        rangeEnd = pointersArrayRaw[gramIndex][childNode + 1];
+        rangeStart = pointersArrayRaw[gramIndex][childNode];
+
+      } else {
+        //word not found, insert it
+        //1. find where it should be inserted
+        childNode = findInsert(gramIDsArrayRaw[gramIndex], wordID, rangeStart, rangeEnd);
+
+        //2. insert it there
+        gramIDsArrayRaw[gramIndex] = insertIntoArray(gramIDsArrayRaw[gramIndex], wordID, childNode);
+        countsArrayRaw[gramIndex] = insertIntoArray(countsArrayRaw[gramIndex], 0, childNode);
+
+        //3. create a pointer to its child if there is one
+        pointersArrayRaw[gramIndex] = insertIntoArray(pointersArrayRaw[gramIndex],
+            pointersArrayRaw[gramIndex][childNode], childNode);
+
+        rangeStart = pointersArrayRaw[gramIndex][childNode];
+        rangeEnd = pointersArrayRaw[gramIndex][childNode];
+
+        //4. go level above, move the pointers behind it
+        if (gramIndex > 0) {
+          for (int i = parentNode + 1; i < pointersArrayRaw[gramIndex - 1].length; i++) {
+            pointersArrayRaw[gramIndex - 1][i]++;
+          }
+        }
+      }
+
+      if (gramIndex == end - start - 1) {
+        countsArrayRaw[gramIndex][childNode]++;
+      }
+
+      parentNode = childNode;
+
+    }
+  }
+
   private int findIndex(int[] arr, Integer key, Integer low, Integer high) {
 
-    int middle = (low + high) / 2;
+    int middle = (low + high) >>> 1;
     if (high < low) {
       return -1;
     }
@@ -294,23 +363,40 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
   }
 
-  private void addChild(NgramTrie child, int level, List[] gramIDsList, List[] pointersList,
+  private int[] insertIntoArray(int[] arr, int value, int index) {
+    if (arr.length == 0) {
+      return new int[] {value};
+    }
+
+    int[] extended = new int[arr.length + 1];
+    System.arraycopy(arr, 0, extended, 0, index);
+    extended[index] = value;
+    if (index < arr.length) {
+      System.arraycopy(arr, index, extended, index + 1, arr.length - index);
+    }
+    return extended;
+  }
+
+  private void addChild(NgramTrie node, int level, List[] gramIDsList, List[] pointersList,
                         List[] countsList) {
     if (level >= NUMBER_OF_LEVELS) {
       return;
     }
 
     //start at the first node in the vocabulary that is present
-    List<NgramTrie> currentNodeChildren = child.getChildren();
-    Collections.sort(currentNodeChildren);
+    Collection<NgramTrie> children = node.getChildren();
+    List<NgramTrie> childrenList = new ArrayList<>();
+    for (NgramTrie child : children) {
+      childrenList.add(child);
+    }
+    Collections.sort(childrenList);
+    int childCount = childrenList.size();
 
-    int childCount = currentNodeChildren.size();
-
-    gramIDsList[level].add(child.getId());
+    gramIDsList[level].add(node.getId());
     pointersList[level].add((int) pointersList[level].get(pointersList[level].size() - 1) + childCount);
-    countsList[level].add(child.getCount());
+    countsList[level].add(node.getCount());
 
-    for (NgramTrie currentChild : currentNodeChildren) {
+    for (NgramTrie currentChild : childrenList) {
       addChild(currentChild, level + 1, gramIDsList, pointersList,
           countsList);
     }
@@ -319,8 +405,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   /**
    * Translate the dictionary from a hashed one into the compressed form.
    * This incurs some penalty on the speed, but improves memory footprint.
-   * It can be only used once the dictionary is static, i.e. no more children
-   * will be added.
+   * Use it as late as possible, because adding new n-grams will become much slower.
    */
   public void compress() {
 
@@ -339,13 +424,17 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
     }
 
-    List<NgramTrie> currentNodeChildren = root.getChildren();
-    Collections.sort(currentNodeChildren);
+    Collection<NgramTrie> children = root.getChildren();
+    List<NgramTrie> childrenList = new ArrayList<>();
+    for (NgramTrie child : children) {
+      childrenList.add(child);
+    }
+    Collections.sort(childrenList);
 
-
-    for (NgramTrie child : currentNodeChildren) {
+    for (NgramTrie child : childrenList) {
       addChild(child, 0, gramIDsList, pointersList,
           countsList);
+
       root.removeChild(child.getId());
     }
 
@@ -401,6 +490,27 @@ public class NgramDictionaryCompressed implements NgramDictionary {
       vocabularySize++;
     }
     return id;
+  }
+
+  private int findInsert(int[] arr, int key, int low, int high) {
+
+    if (high - low <= 1) {
+      if (high - low < 1) {
+
+        return low;
+      }
+
+      return (arr[low] > key) ? low : high;
+    }
+
+    int median = (low + high) >>> 1;
+
+    if (arr[median] < key) {
+      return findInsert(arr, key, median, high);
+    } else {
+      return findInsert(arr, key, low, median);
+    }
+
   }
 
 }

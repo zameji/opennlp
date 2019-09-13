@@ -24,6 +24,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+
+import opennlp.tools.util.StringList;
+import opennlp.uima.namefind.NameFinder;
+import opennlp.uima.util.AnnotatorUtil;
+import opennlp.uima.util.ExceptionMessages;
+import opennlp.uima.util.UimaUtil;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_component.CasAnnotator_ImplBase;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -36,12 +43,6 @@ import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Level;
 import org.apache.uima.util.Logger;
-
-import opennlp.tools.util.StringList;
-import opennlp.uima.namefind.NameFinder;
-import opennlp.uima.util.AnnotatorUtil;
-import opennlp.uima.util.ExceptionMessages;
-import opennlp.uima.util.UimaUtil;
 
 /**
  * The Normalizer tries the structure annotations. The structured value

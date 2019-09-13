@@ -29,8 +29,9 @@ import opennlp.tools.util.Cache;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.StringList;
 import opennlp.tools.util.model.BaseModel;
+import opennlp.tools.util.model.SerializableArtifact;
 
-public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel {
+public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel, SerializableArtifact {
 
   private final int DEFAULT_N = 3;
   private final String DEFAULT_SMOOTHING = "Chen-Goodman";
@@ -223,5 +224,10 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
   @Override
   public String[] predictNextTokens(String... tokens) {
     return new String[0];
+  }
+
+  @Override
+  public Class<?> getArtifactSerializerClass() {
+    return null;
   }
 }

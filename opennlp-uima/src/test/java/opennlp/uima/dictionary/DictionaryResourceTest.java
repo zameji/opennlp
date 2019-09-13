@@ -23,6 +23,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+
+import opennlp.tools.util.StringList;
+import opennlp.uima.util.CasUtil;
+
 import org.apache.uima.UIMAFramework;
 import org.apache.uima.analysis_engine.AnalysisEngine;
 import org.apache.uima.cas.CAS;
@@ -33,14 +37,10 @@ import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.resource.ResourceSpecifier;
 import org.apache.uima.util.InvalidXMLException;
 import org.apache.uima.util.XMLInputSource;
-
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import opennlp.tools.util.StringList;
-import opennlp.uima.util.CasUtil;
 
 public class DictionaryResourceTest {
 

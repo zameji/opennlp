@@ -17,11 +17,11 @@
 
 package opennlp.uima.tokenize;
 
+import opennlp.tools.util.Span;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.text.AnnotationFS;
-
-import opennlp.tools.util.Span;
 
 /**
  * OpenNLP Whitespace Tokenizer annotator.

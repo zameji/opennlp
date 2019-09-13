@@ -17,6 +17,8 @@
 
 package opennlp.uima.doccat;
 
+import opennlp.uima.util.AnnotatorUtil;
+
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.FSIndex;
@@ -24,8 +26,6 @@ import org.apache.uima.cas.Feature;
 import org.apache.uima.cas.Type;
 import org.apache.uima.cas.TypeSystem;
 import org.apache.uima.cas.text.AnnotationFS;
-
-import opennlp.uima.util.AnnotatorUtil;
 
 /**
  * OpenNLP Document Categorizer.

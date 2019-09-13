@@ -20,6 +20,12 @@ package opennlp.uima.doccat;
 import java.util.ArrayList;
 import java.util.List;
 
+
+import opennlp.tools.doccat.DoccatModel;
+import opennlp.tools.doccat.DocumentCategorizerME;
+import opennlp.uima.util.AnnotatorUtil;
+import opennlp.uima.util.UimaUtil;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_component.CasAnnotator_ImplBase;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -32,11 +38,6 @@ import org.apache.uima.resource.ResourceAccessException;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Level;
 import org.apache.uima.util.Logger;
-
-import opennlp.tools.doccat.DoccatModel;
-import opennlp.tools.doccat.DocumentCategorizerME;
-import opennlp.uima.util.AnnotatorUtil;
-import opennlp.uima.util.UimaUtil;
 
 /**
  * Abstract document categorizer which can be implemented to define how the

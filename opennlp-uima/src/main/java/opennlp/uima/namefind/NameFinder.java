@@ -17,6 +17,13 @@
 
 package opennlp.uima.namefind;
 
+import opennlp.tools.namefind.NameFinderME;
+import opennlp.tools.namefind.TokenNameFinderModel;
+import opennlp.tools.util.Span;
+import opennlp.tools.util.eval.Mean;
+import opennlp.uima.util.AnnotatorUtil;
+import opennlp.uima.util.UimaUtil;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.cas.CAS;
@@ -27,13 +34,6 @@ import org.apache.uima.cas.TypeSystem;
 import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.uima.resource.ResourceAccessException;
 import org.apache.uima.resource.ResourceInitializationException;
-
-import opennlp.tools.namefind.NameFinderME;
-import opennlp.tools.namefind.TokenNameFinderModel;
-import opennlp.tools.util.Span;
-import opennlp.tools.util.eval.Mean;
-import opennlp.uima.util.AnnotatorUtil;
-import opennlp.uima.util.UimaUtil;
 
 /**
  * OpenNLP Name annotator.

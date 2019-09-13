@@ -19,6 +19,7 @@ package opennlp.uima.util;
 
 import java.util.Comparator;
 
+
 import org.apache.uima.cas.text.AnnotationFS;
 
 /**

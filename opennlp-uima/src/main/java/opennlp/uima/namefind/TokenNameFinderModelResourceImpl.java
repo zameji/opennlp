@@ -20,6 +20,7 @@ package opennlp.uima.namefind;
 import java.io.IOException;
 import java.io.InputStream;
 
+
 import opennlp.tools.namefind.TokenNameFinderModel;
 import opennlp.uima.util.AbstractModelResource;
 

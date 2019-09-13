@@ -26,12 +26,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.uima.resource.ResourceInitializationException;
 
 import opennlp.tools.ml.TrainerFactory;
 import opennlp.tools.ml.maxent.GISModel;
 import opennlp.tools.util.TrainingParameters;
 import opennlp.tools.util.model.BaseModel;
+
+import org.apache.uima.resource.ResourceInitializationException;
 
 /**
  * This class contains utils methods for the maxent library.

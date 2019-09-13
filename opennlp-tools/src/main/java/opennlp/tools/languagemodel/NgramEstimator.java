@@ -144,7 +144,8 @@ public class NgramEstimator {
     return estimator.calculate_probability(ngram);
   }
 
-  private probabilityEstimator getEstimator(String algorithm, NgramDictionary ngramDictionary, int ngramDepth) {
+  private probabilityEstimator getEstimator(String algorithm, NgramDictionary ngramDictionary,
+                                            int ngramDepth) {
     switch (algorithm.charAt(0)) {
       //chen-goodman
       case 'c':

@@ -20,6 +20,7 @@ package opennlp.uima.util;
 import java.util.Collection;
 import java.util.LinkedList;
 
+
 import org.apache.uima.cas.FSMatchConstraint;
 import org.apache.uima.cas.FeatureStructure;
 import org.apache.uima.cas.text.AnnotationFS;

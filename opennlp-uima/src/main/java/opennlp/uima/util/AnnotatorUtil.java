@@ -20,6 +20,9 @@ package opennlp.uima.util;
 import java.io.IOException;
 import java.io.InputStream;
 
+
+import opennlp.tools.dictionary.Dictionary;
+
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.cas.Feature;
@@ -29,8 +32,6 @@ import org.apache.uima.resource.ResourceAccessException;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Level;
 import org.apache.uima.util.Logger;
-
-import opennlp.tools.dictionary.Dictionary;
 
 /**
  * This is a utility class for Annotators.
