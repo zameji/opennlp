@@ -18,9 +18,12 @@
 package opennlp.tools.languagemodel;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
 
 import opennlp.tools.ngram.NgramDictionary;
 import opennlp.tools.ngram.NgramDictionaryCompressed;
@@ -33,23 +36,27 @@ import opennlp.tools.util.model.SerializableArtifact;
 
 public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel, SerializableArtifact {
 
-  private final int DEFAULT_N = 3;
-  private final String DEFAULT_SMOOTHING = "Chen-Goodman";
+  private static final int DEFAULT_N = 3;
+  private static final String DEFAULT_SMOOTHING = "Chen-Goodman";
   private final boolean compressDictionary;
   private final NgramDictionary ngrams;
+  private Map<String, Integer> vocabulary;
   private final int n;
   private final Cache<String[], Double> LRUCache;
   private final NgramEstimator ngramEstimator;
 
   public SmoothedNgramLanguageModel(String language, int n, String smoothing,
-                                    NgramDictionary ngrams, Boolean compressDictionary) {
+                                    Boolean compressDictionary, NgramDictionary ngrams,
+                                    Map<String, Integer> vocabulary) {
     super("smoothed Ngram model", language, null);
     this.n = n;
     this.ngrams = ngrams;
+    this.vocabulary = vocabulary;
 
     if (smoothing == null) {
       this.ngramEstimator = new NgramEstimator(DEFAULT_SMOOTHING, ngrams, n);
     } else {
+      System.out.println("Smoothed model of " + n + "-grams");
       this.ngramEstimator = new NgramEstimator(smoothing, ngrams, n);
     }
 
@@ -71,25 +78,27 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
   public static SmoothedNgramLanguageModel train(ObjectStream<String[]> in,
                                                  NgramLMFactory factory) throws IOException {
 
-    //1st step: create dictionary
     System.out.println("Building the dictionary");
-    Map<String, Integer> dictionary = buildDictionary(in);
+    Map<String, Integer> dictionary = buildDictionary(in, factory.getMinUnigramFrequency());
 
     System.out.println("Collecting ngrams");
+    //we make the vocabulary static, because we have already seen all words during buildDictionary()
     NgramDictionary ngrams = collectNgrams(in, dictionary, factory.getNgramSize(),
-        factory.getCompression());
+        factory.getCompression(), true);
 
-    return new SmoothedNgramLanguageModel(factory.getSmoothing(), 3, factory.getSmoothing(),
-        ngrams, factory.getCompression());
+    return new SmoothedNgramLanguageModel(factory.getSmoothing(), factory.getNgramSize(),
+        factory.getSmoothing(), factory.getCompression(), ngrams, dictionary);
   }
 
   /**
    * Creates a dictionary of the words in the corpus
+   *
    * @param in A stream of tokenized documents
    * @return A dictionary assigning each token an integer alias
    * @throws IOException If it fails to read the input
    */
-  private static Map<String, Integer> buildDictionary(ObjectStream<String[]> in) throws IOException {
+  private static Map<String, Integer> buildDictionary(ObjectStream<String[]> in,
+                                                      Integer minUnigramFrequency) throws IOException {
 
     class Token implements Comparable<Token> {
 
@@ -136,10 +145,15 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     Arrays.sort(vocabulary);
 
     //3rd step: give most frequent words the lowest IDs
+    //do this only until word frequency > minUnigramFrequency
     dictionary = new HashMap<>();
     for (int j = vocabulary.length - 1; j >= 0; j--) {
+      if (vocabulary[j].count < minUnigramFrequency) {
+        break;
+      }
       dictionary.put(vocabulary[j].word, j);
     }
+    dictionary.put("<OOV>", dictionary.size());
 
     return dictionary;
 
@@ -147,23 +161,25 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
   /**
    * Collects the ngrams found in the corpus, notes their size
-   * @param in A stream of tokenized documents
-   * @param dictionary A dictionary assigning each token an integer alias
-   * @param ngramSize The maximum size of ngrams to be collected (lower order n-grams will be
-   *                  included
+   *
+   * @param in                   A stream of tokenized documents
+   * @param dictionary           A dictionary assigning each token an integer alias
+   * @param ngramSize            The maximum size of ngrams to be collected (lower order n-grams will be
+   *                             included
    * @param compressedDictionary Should the ngrams be stored in a way that minimizes space?
    * @return A dictionary assigning each ngram a count
-   * @throws IOException If it fails to read the input
+   * @throws IOException if it fails to read the input
    */
   private static NgramDictionary collectNgrams(ObjectStream<String[]> in, Map<String,
-      Integer> dictionary, Integer ngramSize, Boolean compressedDictionary) throws IOException {
+      Integer> dictionary, Integer ngramSize, Boolean compressedDictionary, Boolean staticVocabulary) throws IOException {
 
     NgramDictionary ngrams;
 
+    //We make the vocabulary static, because we've already seen all the items in the stream
     if (compressedDictionary) {
-      ngrams = new NgramDictionaryCompressed(ngramSize, dictionary);
+      ngrams = new NgramDictionaryCompressed(ngramSize, dictionary, staticVocabulary);
     } else {
-      ngrams = new NgramDictionaryHashed(dictionary);
+      ngrams = new NgramDictionaryHashed(dictionary, staticVocabulary);
     }
 
     String[] next = in.read();
@@ -213,17 +229,82 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
     double prob = ngramEstimator.calculateProbability(tokens);
     LRUCache.put(tokens, prob);
     return prob;
+  }
 
+  public List[] calculateProbabilities(String... tokens) {
+    List[] results = new List[2];
+    results[0] = new ArrayList<String[]>();
+    results[1] = new ArrayList<Double>();
+
+    if (tokens == null) {
+      return results;
+    }
+
+    int depth = Math.min(tokens.length, n);
+
+    for (int i = 0; i + depth <= tokens.length; i++) {
+      String[] gram = new String[depth];
+      for (int j = 0; j < depth; j++) {
+        gram[j] = (vocabulary.containsKey(tokens[i + j])) ? tokens[i + j] : "<OOV>";
+      }
+      results[0].add(gram);
+      results[1].add(calculateProbability(gram));
+    }
+    return results;
   }
 
   @Deprecated
   public StringList predictNextTokens(StringList tokens) {
-    return null;
+    if (tokens == null) {
+      return null;
+    }
+    StringList result = null;
+    String[] tokenArray = new String[tokens.size()];
+
+    for (int i = 0; i < tokens.size(); i++) {
+      tokenArray[i] = tokens.getToken(i);
+    }
+
+    String[] resultArray = predictNextTokens(tokenArray);
+
+    if (resultArray != null) {
+      result = new StringList(resultArray);
+    }
+
+    return result;
+
   }
 
   @Override
   public String[] predictNextTokens(String... tokens) {
-    return new String[0];
+    if (tokens == null) {
+      return null;
+    }
+
+    String[] result = null;
+    String[][] possibleContinuations = ngrams.getSiblings(tokens);
+
+    int attempt = 1;
+    while (possibleContinuations == null) {
+      if (attempt > tokens.length) {
+        return result;
+      }
+      possibleContinuations = ngrams.getSiblings(tokens, attempt, tokens.length);
+      attempt++;
+    }
+
+    double maxProbability = Double.MIN_VALUE;
+    for (int i = 0; i < possibleContinuations.length; i++) {
+      String[] continuation = possibleContinuations[i];
+      double prob = calculateProbability(continuation);
+
+      if (prob > maxProbability) {
+        result = continuation;
+        maxProbability = prob;
+      }
+    }
+
+    return result;
   }
 
   @Override

@@ -29,11 +29,11 @@ public interface NgramDictionary {
 
   int getNGramCountSum(int n);
 
-  int getSiblingCount(String... childNgram);
+  int getSiblingCount(String... gram);
 
-  int getSiblingCount(String[] arrayWithChildNgram, int start, int end);
+  int getSiblingCount(String[] arrayWithGram, int start, int end);
 
-  int getSiblingCount(String[] arrayWithChildNgram, int start, int end, int minfreq, int maxfreq);
+  int getSiblingCount(String[] arrayWithGram, int start, int end, int minfreq, int maxfreq);
 
   void add(String... gram);
 
@@ -43,4 +43,7 @@ public interface NgramDictionary {
 
   int get(String[] gram, int start, int end);
 
+  String[][] getSiblings(String[] gram);
+
+  String[][] getSiblings(String[] arrayWithGram, int start, int length);
 }

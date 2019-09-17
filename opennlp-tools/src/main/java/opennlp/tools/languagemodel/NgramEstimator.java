@@ -86,7 +86,10 @@ public class NgramEstimator {
       } else {
         discount = D[end - start - 1][3];
       }
-      double prob = (c - discount) / c_sum[end - start - 1];
+      double prob = Math.max(c - discount, 0) / c_sum[end - start - 1];
+      if (prob < 0) {
+        System.err.println("NEGATIVE PROBABILITY: " + start + "-" + end + "," + Arrays.toString(tokens));
+      }
       if (end - start == 1) {
         return prob;
       } else {
@@ -95,7 +98,10 @@ public class NgramEstimator {
           int maxfreq = (freq == 3) ? Integer.MAX_VALUE : freq;
           double siblingCount = ngramDictionary
               .getSiblingCount(tokens, start, end, freq, maxfreq);
-          gamma += (D[end - start - 1][freq] * siblingCount) / c_sum[end - start - 1];
+          gamma += (-D[end - start - 1][freq] * siblingCount) / c_sum[end - start - 1];
+        }
+        if (gamma < 0) {
+          System.err.println("NEGATIVE GAMMA: " + start + "-" + end + "," + Arrays.toString(tokens));
         }
         return prob + gamma * calculate_probability(tokens, start + 1, end);
       }

@@ -23,21 +23,45 @@ import java.util.Map;
 
 public class NgramDictionaryHashed implements NgramDictionary {
 
+
+  private final boolean STATICVOCABULARY;
   private final Map<String, Integer> wordToID;
+  private final Map<Integer, String> IDToWord;
   private final NgramTrie root;
   private int vocabularySize = 0;
+
+
+  public NgramDictionaryHashed(Map<String, Integer> dictionary) {
+    root = new NgramTrie(0);
+    STATICVOCABULARY = false;
+    IDToWord = new HashMap<>();
+    if (dictionary == null) {
+      wordToID = new HashMap<>();
+    } else {
+      wordToID = dictionary;
+      for (Map.Entry<String, Integer> word : wordToID.entrySet()) {
+        IDToWord.put(word.getValue(), word.getKey());
+      }
+      vocabularySize = wordToID.size();
+    }
+  }
 
   /**
    * Initialize the trie structure
    *
    * @param dictionary (optional) mapping of words to their integer IDs
    */
-  public NgramDictionaryHashed(Map<String, Integer> dictionary) {
+  public NgramDictionaryHashed(Map<String, Integer> dictionary, boolean staticVocabulary) {
     root = new NgramTrie(0);
+    STATICVOCABULARY = staticVocabulary;
+    IDToWord = new HashMap<>();
     if (dictionary == null) {
       wordToID = new HashMap<>();
     } else {
       wordToID = dictionary;
+      for (Map.Entry<String, Integer> word : wordToID.entrySet()) {
+        IDToWord.put(word.getValue(), word.getKey());
+      }
       vocabularySize = wordToID.size();
     }
   }
@@ -126,14 +150,18 @@ public class NgramDictionaryHashed implements NgramDictionary {
 
     Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
     if (currentToken == null) {
-      return 0;
-    } else {
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return 0;
+      }
+    }
+
       NgramTrie nextNode = currentNode.getChild(currentToken);
       if (nextNode == null) {
         return 0;
       } else {
         return getSiblingCountByNode(arrayWithChildNgram, start + 1, end, nextNode);
-      }
+
     }
   }
 
@@ -146,18 +174,76 @@ public class NgramDictionaryHashed implements NgramDictionary {
 
     Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
     if (currentToken == null) {
-      return 0;
-    } else {
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return 0;
+      }
+    }
+
       NgramTrie nextNode = currentNode.getChild(currentToken);
       if (nextNode == null) {
         return 0;
       } else {
         return getSiblingCountByNode(arrayWithChildNgram, start + 1, end, minfreq, maxfreq, nextNode);
       }
-    }
-
   }
 
+
+  @Override
+  public String[][] getSiblings(String... ngram) {
+    return getSiblings(ngram, 0, ngram.length);
+  }
+
+  @Override
+  public String[][] getSiblings(String[] arrayWithChildNgram, int start, int end) {
+
+    String[][] result;
+
+    String[] siblings = getSiblingsByNode(arrayWithChildNgram, start, end, root);
+    if (siblings == null) {
+      return null;
+    }
+
+    result = new String[siblings.length][end - start + 1];
+    for (int i = 0; i < siblings.length; i++) {
+      System.arraycopy(arrayWithChildNgram, start, result[i], 0, end - start);
+      result[i][end - start] = siblings[i];
+    }
+
+    return result;
+  }
+
+  private String[] getSiblingsByNode(String[] arrayWithChildNgram, int start, int end,
+                                     NgramTrie currentNode) {
+
+    String[] result = null;
+    if (end - start == 1) {
+      Collection<NgramTrie> siblings = currentNode.getChildren();
+      String[] siblingsArray = new String[siblings.size()];
+      int i = 0;
+      for (NgramTrie sibling : siblings) {
+        siblingsArray[i] = IDToWord.get(sibling.getId());
+        i++;
+      }
+      return siblingsArray;
+    }
+
+    Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
+    if (currentToken == null) {
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return result;
+      }
+    }
+
+    NgramTrie nextNode = currentNode.getChild(currentToken);
+    if (nextNode == null) {
+      return result;
+    } else {
+      return getSiblingsByNode(arrayWithChildNgram, start + 1, end, nextNode);
+
+    }
+  }
 
   /**
    * Add a new ngram to the dictionary (or increase its count by one)
@@ -215,14 +301,21 @@ public class NgramDictionaryHashed implements NgramDictionary {
     Integer currentToken = wordToID.get(doc[start]);
     NgramTrie currentNode = root;
     if (currentToken == null) {
-      return 0;
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return 0;
+      }
     }
 
     for (int i = 0; i < end - start; i++) {
       Integer id = wordToID.get(doc[i + start]);
       if (id == null) {
-        return 0;
+        id = wordToID.get("<OOV>");
+        if (id == null) {
+          return 0;
+        }
       }
+
       currentNode = currentNode.getChild(id);
       if (currentNode == null) {
         return 0;
@@ -242,9 +335,21 @@ public class NgramDictionaryHashed implements NgramDictionary {
   private int getWordID(String word) {
     Integer id = wordToID.get(word);
     if (id == null) {
-      id = vocabularySize;
-      wordToID.put(word, id);
-      vocabularySize++;
+      if (!STATICVOCABULARY) {
+        id = vocabularySize;
+        wordToID.put(word, id);
+//        IDToWord.put(id, word);
+        vocabularySize++;
+      } else {
+        id = wordToID.get("<OOV>");
+        if (id == null) {
+          System.err.println("Static vocabulary without the \"<OOV>\" tag cannot deal " +
+              "with words not in the vocabulary. Adding the \"<OOV>\" tag to the vocabulary.");
+          id = vocabularySize;
+          wordToID.put("<OOV>", id);
+//          IDToWord.put(id, "<OOV>");
+        }
+      }
     }
     return id;
   }

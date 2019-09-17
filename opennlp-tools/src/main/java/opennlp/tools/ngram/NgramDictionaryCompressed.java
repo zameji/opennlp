@@ -28,6 +28,7 @@ import java.util.Map;
 public class NgramDictionaryCompressed implements NgramDictionary {
 
   private final int NUMBER_OF_LEVELS;
+  private final boolean STATICVOCABULARY;
   private final Map<String, Integer> wordToID;
   private final Map<Integer, String> IDToWord;
   private final int[][] gramIDsArrayRaw;
@@ -37,10 +38,13 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   private int vocabularySize = 0;
   private boolean compressed = false;
 
-  public NgramDictionaryCompressed(int ngram, Map<String, Integer> dictionary) {
+
+  public NgramDictionaryCompressed(int ngram, Map<String, Integer> dictionary, boolean staticVocabulary) {
 
     root = new NgramTrie(0);
     NUMBER_OF_LEVELS = ngram;
+    STATICVOCABULARY = staticVocabulary;
+
     IDToWord = new HashMap<>();
     if (dictionary == null) {
       wordToID = new HashMap<>();
@@ -67,11 +71,15 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
   @Override
   public int get(String[] gram, int start, int end) {
+
     Integer childNode, currentToken;
 
     currentToken = wordToID.get(gram[start]);
     if (currentToken == null) {
-      return 0;
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null || currentToken > pointersArrayRaw.length) {
+        return 0;
+      }
     }
 
     childNode = currentToken;
@@ -85,8 +93,15 @@ public class NgramDictionaryCompressed implements NgramDictionary {
       currentToken = wordToID.get(gram[i + start]);
 
       //ngram not over, but no children recorded
-      if (endIndex - startIndex == 0 || currentToken == null) {
+      if (endIndex - startIndex == 0) {
         return 0;
+      }
+
+      if (currentToken == null) {
+        currentToken = wordToID.get("<OOV>");
+        if (currentToken == null) {
+          return 0;
+        }
       }
 
       childNode = findIndex(gramIDsArrayRaw[i], currentToken, startIndex, endIndex);
@@ -102,6 +117,76 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     return countsArrayRaw[end - start - 1][childNode];
 
   }
+
+  public String[][] getSiblings(String... gram) {
+    return getSiblings(gram, 0, gram.length);
+  }
+
+
+  public String[][] getSiblings(String[] gram, int start, int end) {
+    String[] prefabToInsertSibling = new String[end - start + 1];
+    for (int i = start; i < end; i++) {
+      prefabToInsertSibling[i] = gram[start + i];
+    }
+
+    String[][] result;
+    Integer childNode, currentToken;
+
+    currentToken = wordToID.get(gram[start]);
+    if (currentToken == null) {
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return null;
+      }
+    }
+
+    childNode = currentToken;
+
+    //todo: get the compression working
+    int startIndex = pointersArrayRaw[0][childNode];
+    int endIndex = pointersArrayRaw[0][childNode + 1];
+
+    for (int i = 1; i < end - start; i++) {
+
+      currentToken = wordToID.get(gram[i + start]);
+
+      //ngram not over, but no children recorded
+      if (endIndex - startIndex == 0) {
+        return null;
+      }
+
+      if (currentToken == null) {
+        currentToken = wordToID.get("<OOV>");
+        if (currentToken == null) {
+          return null;
+        }
+      }
+
+      childNode = findIndex(gramIDsArrayRaw[i], currentToken, startIndex, endIndex);
+      if (childNode == -1) {
+        return null;
+      }
+
+      startIndex = pointersArrayRaw[i][childNode];
+      endIndex = pointersArrayRaw[i][childNode + 1];
+    }
+
+    if (startIndex == endIndex) {
+      return null;
+    }
+
+    result = new String[endIndex - startIndex][prefabToInsertSibling.length];
+
+    for (int w = startIndex; w < endIndex; w++) {
+      result[endIndex - w - 1] = prefabToInsertSibling.clone();
+      String currentWord = IDToWord.get(gramIDsArrayRaw[end - start][w]);
+      result[endIndex - w - 1][prefabToInsertSibling.length - 1] = currentWord;
+
+    }
+    return result;
+
+  }
+
 
   /**
    * Get the size of the corpus
@@ -168,7 +253,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
 
     Integer wordId = wordToID.get(ngram[start]);
     if (wordId == null) {
-      return 0;
+      wordId = wordToID.get("<OOV>");
+      if (wordId == null) {
+        return 0;
+      }
     }
 
     int wordIndex = wordId;
@@ -181,7 +269,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     while (end - (start + level) > 1 && startPointer != endPointer) {
       wordId = wordToID.get(ngram[level + start]);
       if (wordId == null) {
-        return 0;
+        wordId = wordToID.get("<OOV>");
+        if (wordId == null) {
+          return 0;
+        }
       }
 
       wordIndex = findIndex(gramIDsArrayRaw[level], wordId, startPointer, endPointer);
@@ -218,7 +309,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     Integer wordId = wordToID.get(ngram[start]);
 
     if (wordId == null) {
-      return 0;
+      wordId = wordToID.get("<OOV>");
+      if (wordId == null) {
+        return 0;
+      }
     }
 
     int wordIndex = wordId;
@@ -231,7 +325,10 @@ public class NgramDictionaryCompressed implements NgramDictionary {
     while (end - (start + level) > 1 && startPointer != endPointer) {
       wordId = wordToID.get(ngram[level + start]);
       if (wordId == null) {
-        return 0;
+        wordId = wordToID.get("<OOV>");
+        if (wordId == null) {
+          return 0;
+        }
       }
 
       wordIndex = findIndex(gramIDsArrayRaw[level], wordId, startPointer, endPointer);
@@ -347,6 +444,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   private int findIndex(int[] arr, Integer key, Integer low, Integer high) {
 
     int middle = (low + high) >>> 1;
+
     if (high < low) {
       return -1;
     }
@@ -355,7 +453,7 @@ public class NgramDictionaryCompressed implements NgramDictionary {
       return middle;
     } else if (key < arr[middle]) {
       return findIndex(
-          arr, key, low, middle);
+          arr, key, low, middle - 1);
     } else {
       return findIndex(
           arr, key, middle + 1, high);
@@ -484,10 +582,21 @@ public class NgramDictionaryCompressed implements NgramDictionary {
   private int getWordID(String word) {
     Integer id = wordToID.get(word);
     if (id == null) {
+      if (!STATICVOCABULARY) {
       id = vocabularySize;
       wordToID.put(word, id);
       IDToWord.put(id, word);
-      vocabularySize++;
+        vocabularySize++;
+      } else {
+        id = wordToID.get("<OOV>");
+        if (id == null) {
+          System.err.println("Static vocabulary without the \"<OOV>\" tag cannot deal " +
+              "with words not in the vocabulary. Adding the \"<OOV>\" tag to the vocabulary.");
+          id = vocabularySize;
+          wordToID.put("<OOV>", id);
+          IDToWord.put(id, "<OOV>");
+        }
+      }
     }
     return id;
   }
