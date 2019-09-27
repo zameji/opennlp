@@ -19,7 +19,6 @@ package opennlp.tools.languagemodel;
 
 import java.util.Map;
 
-
 import opennlp.tools.util.BaseToolFactory;
 import opennlp.tools.util.InvalidFormatException;
 import opennlp.tools.util.ext.ExtensionLoader;
@@ -34,10 +33,13 @@ public class NgramLMFactory extends BaseToolFactory {
   private static final String COMPRESSION = "compression";
   private static final String NGRAM_SIZE = "ngramSize";
   private static final String SMOOTHING = "smoothing";
+  private static final String MIN_UNIGRAM_FREQUENCY = "minUnigramFrequency";
+
   private String languageCode;
   private String smoothing = "Chen-Goodman";
   private Integer ngramSize;
   private Boolean compression = false;
+  private Integer minUnigramFrequency;
 
   /**
    * Creates a {@link opennlp.tools.languagemodel.NgramLMFactory} that provides the default implementation
@@ -47,31 +49,32 @@ public class NgramLMFactory extends BaseToolFactory {
   }
 
   public NgramLMFactory(String languageCode,
-                        int ngramDepth, String smoothing, Boolean compression) {
-    this.init(languageCode, ngramDepth, smoothing, compression);
+                        int ngramDepth, String smoothing, Boolean compression, Integer minUnigramFrequency) {
+    this.init(languageCode, ngramDepth, smoothing, compression, minUnigramFrequency);
   }
 
   public NgramLMFactory(String languageCode,
                         int ngramDepth, String smoothing) {
-    this.init(languageCode, ngramDepth, smoothing, false);
+    this.init(languageCode, ngramDepth, smoothing, false, 0);
   }
 
   public static opennlp.tools.languagemodel.NgramLMFactory create(String subclassName,
                                                                   String languageCode,
                                                                   Integer ngramSize,
                                                                   String smoothing,
-                                                                  Boolean compression)
+                                                                  Boolean compression,
+                                                                  Integer minUnigramFrequency)
       throws InvalidFormatException {
     if (subclassName == null) {
       // will create the default factory
       return new opennlp.tools.languagemodel.NgramLMFactory(languageCode, ngramSize,
-          smoothing);
+          smoothing, compression, minUnigramFrequency);
     }
     try {
       opennlp.tools.languagemodel.NgramLMFactory theFactory = ExtensionLoader.instantiateExtension(
           opennlp.tools.languagemodel.NgramLMFactory.class, subclassName);
       theFactory.init(languageCode, ngramSize,
-          smoothing, compression);
+          smoothing, compression, minUnigramFrequency);
       return theFactory;
     } catch (Exception e) {
       String msg = "Could not instantiate the " + subclassName
@@ -92,7 +95,7 @@ public class NgramLMFactory extends BaseToolFactory {
   }
 
   protected void init(String languageCode, Integer ngramDepth, String smoothing,
-                      Boolean compression) {
+                      Boolean compression, Integer minUnigramFrequency) {
     this.languageCode = languageCode;
     this.ngramSize = ngramDepth;
     if (smoothing != null) {
@@ -102,6 +105,7 @@ public class NgramLMFactory extends BaseToolFactory {
     if (compression != null) {
       this.compression = compression;
     }
+    this.minUnigramFrequency = minUnigramFrequency;
   }
 
   @Override
@@ -117,17 +121,34 @@ public class NgramLMFactory extends BaseToolFactory {
     manifestEntries.put(COMPRESSION,
         Boolean.toString(getCompression()));
 
+    manifestEntries.put(MIN_UNIGRAM_FREQUENCY,
+        Integer.toString(getMinUnigramFrequency()));
+
     return manifestEntries;
   }
 
+  /**
+   * Gets whether the ngram storage should be optimized for space
+   *
+   * @return true if the space optimization is desired
+   */
   public Boolean getCompression() {
     return compression;
   }
 
   /**
-   * Gets whether to use alphanumeric optimization.
+   * Gets the lowest unigram frequency allowed in the dictionary
    *
-   * @return true if the alpha numeric optimization is enabled, otherwise false
+   * @return The unigram frequency boundary
+   */
+  public Integer getMinUnigramFrequency() {
+    return minUnigramFrequency;
+  }
+
+  /**
+   * Gets the ngram size
+   *
+   * @return The value of n
    */
   public Integer getNgramSize() {
     if (artifactProvider != null) {
@@ -138,9 +159,9 @@ public class NgramLMFactory extends BaseToolFactory {
   }
 
   /**
-   * Gets the abbreviation dictionary
+   * Gets the smoothing type
    *
-   * @return null or the abbreviation dictionary
+   * @return The smoothing type
    */
   public String getSmoothing() {
     if (this.smoothing == null && artifactProvider != null) {

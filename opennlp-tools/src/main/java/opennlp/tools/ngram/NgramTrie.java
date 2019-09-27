@@ -24,7 +24,7 @@ import java.util.Map;
 class NgramTrie implements Comparable<NgramTrie> {
 
   private final Map<Integer, NgramTrie> children = new HashMap<>();
-  private int[] childCache;
+  private int[] childCache;   //cache the number of children with frequencies 1, 2, >=3 (for Chen-Goodman)
   private final int id;
   private int count = 0;
 
@@ -33,10 +33,33 @@ class NgramTrie implements Comparable<NgramTrie> {
     childCache = new int[] {-1, -1, -1};
   }
 
+  /**
+   * Add a given node to the children of this node
+   *
+   * @param child The child to add
+   */
   private void addChildren(NgramTrie child) {
     children.put(child.getId(), child);
   }
 
+  /**
+   * Add an ngram defined as an array of wordIDs. E.g. the ngram ["A", "good", "day"]
+   * could be passed as [0, 5, 7]
+   *
+   * @param childIDs A (possibly) larger ngram
+   */
+  public void addChildren(int[] childIDs) {
+    addChildren(childIDs, 0, childIDs.length);
+  }
+
+  /**
+   * Add an ngram defined as an array of wordIDs. E.g. the ngram ["A", "good", "day"]
+   * could be passed as [0, 5, 7]
+   *
+   * @param childIDs A (possibly) larger ngram
+   * @param start    The beginning of the relevant ngram
+   * @param end      The end of the relevant ngram
+   */
   public void addChildren(int[] childIDs, int start, int end) {
 
     if (end - start == 1) {
@@ -60,27 +83,45 @@ class NgramTrie implements Comparable<NgramTrie> {
     }
   }
 
-  public void addChildren(int[] childIDs) {
-    addChildren(childIDs, 0, childIDs.length);
-  }
 
+  /**
+   * Remove a given word ID from the children of this node
+   *
+   * @param childID
+   */
   public void removeChild(int childID) {
     children.remove(childID);
   }
 
+  /**
+   * Extract a node by its ID
+   *
+   * @param childID The word ID of the node
+   * @return The node
+   */
   NgramTrie getChild(int childID) {
     return children.get(childID);
   }
 
+  /**
+   * Get the number of children of this node with frequency > 0
+   * Requires that in training all n-grams were also passed as n-1, n-2 ... n-n+1-grams
+   *
+   * @return The number of children
+   */
   public int getChildrenCount() {
     return getChildrenCount(1);
   }
 
+  /**
+   * Get the number of children (at a given depth) of this node with frequency > 0
+   * Requires that in training all n-grams were also passed as n-1, n-2 ... n-n+1-grams
+   *
+   * @param depth The depth; if 1, direct children will be found, if 2, the children-of-children, etc.
+   * @return The number of children
+   */
   public int getChildrenCount(int depth) {
     if (depth == 1) {
-      //todo: we could return just children.size(), assuming that all n-grams are also
-      // represented as n-1 grams, n-2 grams etc.
-//      return getChildrenCount(depth, 1, Integer.MAX_VALUE);
       return children.size();
     } else {
       int childrenCount = 0;
@@ -91,6 +132,15 @@ class NgramTrie implements Comparable<NgramTrie> {
     }
   }
 
+  /**
+   * Get the number of children (at a given depth) of this node with frequency minfreq <= frequency <= maxfreq
+   * Requires that in training all n-grams were also passed as n-1, n-2 ... n-n+1-grams
+   *
+   * @param depth   The depth; if 1, direct children will be found, if 2, the children-of-children, etc.
+   * @param maxfreq the lowest accepted frequency
+   * @param minfreq the highest accepted frequency
+   * @return The number of children
+   */
   public int getChildrenCount(int depth, int minfreq, int maxfreq) {
 
     if (depth == 1) {
@@ -126,18 +176,43 @@ class NgramTrie implements Comparable<NgramTrie> {
     }
   }
 
+  /**
+   * Increase the count of this node by 1
+   */
   public void increment() {
     count++;
   }
 
+  /**
+   * Decrease the count of this node by 1
+   */
+  public void decrement() {
+    count--;
+  }
+
+  /**
+   * Get the frequency of this node
+   *
+   * @return The frequency
+   */
   public int getCount() {
     return count;
   }
 
+  /**
+   * Get the word ID of this node
+   *
+   * @return The word ID
+   */
   public int getId() {
     return id;
   }
 
+  /**
+   * Get all children of this node
+   *
+   * @return the children
+   */
   public Collection<NgramTrie> getChildren() {
     return children.values();
   }
@@ -145,5 +220,12 @@ class NgramTrie implements Comparable<NgramTrie> {
   @Override
   public int compareTo(NgramTrie o) {
     return id - o.getId();
+  }
+
+  @Override
+  public boolean equals(Object o){
+    if (!(o instanceof NgramTrie)) return false;
+
+    return (this.id == ((NgramTrie) o).id);
   }
 }

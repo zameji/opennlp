@@ -20,16 +20,15 @@ package opennlp.tools.ngram;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-
-import org.junit.Test;
 
 public class NgramDictionaryTest {
 
   @Test
   public void test_uncompressed() {
-    NgramDictionaryHashed t = new NgramDictionaryHashed(null);
+    NgramDictionaryHashed t = new NgramDictionaryHashed(5, null);
     String[] s = new String[] {"A", "B", "C", "D"};
     t.add(s, 0, 3);
     t.add(s, 1, 4);
@@ -48,7 +47,7 @@ public class NgramDictionaryTest {
     dict.put("C", 2);
     dict.put("D", 3);
 
-    t = new NgramDictionaryHashed(dict);
+    t = new NgramDictionaryHashed(5, dict);
     String[] trigrams = new String[] {"A", "AA", "AAC", "AC", "B", "BB", "BBC", "BBD",
         "BC", "BCD", "BD", "CA", "CD", "DB", "DBB", "DBC", "DDD"};
     for (String trigram : trigrams) {
@@ -60,7 +59,7 @@ public class NgramDictionaryTest {
 
   @Test
   public void test_compressed() {
-    NgramDictionaryCompressed t = new NgramDictionaryCompressed(3, null);
+    NgramDictionaryCompressed t = new NgramDictionaryCompressed(3, null, false);
     String[] s = new String[] {"A", "B", "C", "D"};
     t.add(s, 0, 3);
     t.add(s, 1, 4);
@@ -80,7 +79,7 @@ public class NgramDictionaryTest {
     dict.put("C", 2);
     dict.put("D", 3);
 
-    t = new NgramDictionaryCompressed(3, dict);
+    t = new NgramDictionaryCompressed(3, dict, false);
     String[] trigrams = new String[] {"A", "AA", "AAC", "AC", "B", "BB", "BBC", "BBD",
         "BC", "BCD", "BD", "CA", "CD", "DB", "DBB", "DBC", "DDD"};
     for (String trigram : trigrams) {
@@ -93,7 +92,7 @@ public class NgramDictionaryTest {
 
   @Test
   public void getCount() {
-    NgramDictionaryCompressed t = new NgramDictionaryCompressed(5, null);
+    NgramDictionaryCompressed t = new NgramDictionaryCompressed(5, null, false);
     t.add(new String[] {"A", "B", "C", "D", "E"});
     t.add(new String[] {"A", "B", "C"});
     t.add(new String[] {"B", "C", "D"});
@@ -120,10 +119,11 @@ public class NgramDictionaryTest {
 
     t.add("B", "C");
     t.add("D", "C", "D");
+    System.out.println(t.toString());
 //    assertEquals(3, (int) t.get(new String[] {"B", "C"}));
     assertEquals(1, (int) t.get(new String[] {"D", "C", "D"}));
 
-    NgramDictionaryHashed th = new NgramDictionaryHashed(null);
+    NgramDictionaryHashed th = new NgramDictionaryHashed(5, null);
     th.add(new String[] {"A", "B", "C"});
     th.add(new String[] {"B", "C", "D"});
     th.add(new String[] {"A", "B"});

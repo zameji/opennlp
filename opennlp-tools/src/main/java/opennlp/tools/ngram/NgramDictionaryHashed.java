@@ -17,33 +17,22 @@
 
 package opennlp.tools.ngram;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class NgramDictionaryHashed implements NgramDictionary {
 
-
   private final boolean STATICVOCABULARY;
+  private final int NUMBER_OF_LEVELS;
   private final Map<String, Integer> wordToID;
   private final Map<Integer, String> IDToWord;
   private final NgramTrie root;
   private int vocabularySize = 0;
 
-
-  public NgramDictionaryHashed(Map<String, Integer> dictionary) {
-    root = new NgramTrie(0);
-    STATICVOCABULARY = false;
-    IDToWord = new HashMap<>();
-    if (dictionary == null) {
-      wordToID = new HashMap<>();
-    } else {
-      wordToID = dictionary;
-      for (Map.Entry<String, Integer> word : wordToID.entrySet()) {
-        IDToWord.put(word.getValue(), word.getKey());
-      }
-      vocabularySize = wordToID.size();
-    }
+  public NgramDictionaryHashed(int ngram, Map<String, Integer> dictionary) {
+    this(ngram, dictionary, false);
   }
 
   /**
@@ -51,9 +40,13 @@ public class NgramDictionaryHashed implements NgramDictionary {
    *
    * @param dictionary (optional) mapping of words to their integer IDs
    */
-  public NgramDictionaryHashed(Map<String, Integer> dictionary, boolean staticVocabulary) {
+  public NgramDictionaryHashed(int ngram, Map<String, Integer> dictionary, boolean staticVocabulary) {
+
     root = new NgramTrie(0);
+
     STATICVOCABULARY = staticVocabulary;
+    NUMBER_OF_LEVELS = ngram;
+
     IDToWord = new HashMap<>();
     if (dictionary == null) {
       wordToID = new HashMap<>();
@@ -66,128 +59,65 @@ public class NgramDictionaryHashed implements NgramDictionary {
     }
   }
 
-  public NgramTrie getRoot() {
-    return root;
-  }
-
-  /**
-   * Get the size of the corpus
-   *
-   * @return The size
-   */
   @Override
   public int getCorpusSize() {
-    List<NgramTrie> unigrams = root.getChildren();
+
+    Collection<NgramTrie> children = root.getChildren();
+
     int size = 0;
-    for (NgramTrie unigram : unigrams) {
+    for (NgramTrie unigram : children) {
       size += unigram.getCount();
     }
     return size;
   }
 
   @Override
-  public int getNGramCount(int depth) {
-    return root.getChildrenCount(depth);
-  }
-
-  /**
-   * Get the number of various ngram of a given size and frequency
-   *
-   * @param depth  The size of the ngram (i.e. n)
-   * @param minfreq The minimum frequency with which the ngram should occur
-   * @param maxfreq The maximum frequency with which the ngram should occur
-   * @return The number of various ngrams of this size
-   */
-  @Override
   public int getNGramCount(int depth, int minfreq, int maxfreq) {
     return root.getChildrenCount(depth, minfreq, maxfreq);
   }
 
   @Override
-  public int getNGramCountSum(int n) {
-    return getNGramCountSum(n, root);
-  }
-
-  private int getNGramCountSum(int n, NgramTrie node) {
-    int sum = 0;
-    if (n == 1) {
-      List<NgramTrie> children = node.getChildren();
-      for (NgramTrie child : children) {
-        sum += child.getCount();
-      }
-      return sum;
-    } else {
-      List<NgramTrie> children = node.getChildren();
-      for (NgramTrie child : children) {
-        sum += getNGramCountSum(n - 1, child);
-      }
-    }
-    return sum;
-  }
-
-  @Override
-  public int getSiblingCount(String... childNgram) {
-    return getSiblingCountByNode(childNgram, 0, childNgram.length, root);
+  public int getNGramCountSum(int depth) {
+    return getNGramCountSum(depth, root);
   }
 
   @Override
   public int getSiblingCount(String[] ngram, int start, int end) {
-    return getSiblingCountByNode(ngram, start, end, root);
+    NgramTrie lastNode = getLastNode(ngram, start, end, root);
+    if (lastNode == null) {
+      return 0;
+    }
+
+    return lastNode.getChildrenCount();
+
   }
 
   @Override
-  public int getSiblingCount(String[] arrayWithChildNgram, int start, int end, int minfreq,
+  public int getSiblingCount(String[] ngram, int start, int end, int minfreq,
                              int maxfreq) {
-    return getSiblingCountByNode(arrayWithChildNgram, start, end, minfreq, maxfreq, root);
+    NgramTrie lastNode = getLastNode(ngram, start, end, root);
+    if (lastNode == null) {
+      return 0;
+    }
+
+    return lastNode.getChildrenCount(1, minfreq, maxfreq);
   }
 
-  private int getSiblingCountByNode(String[] arrayWithChildNgram, int start, int end,
-                                    NgramTrie currentNode) {
-
-    if (end - start == 1) {
-      return currentNode.getChildrenCount();
+  @Override
+  public int getSiblingCountSum(String[] ngram, int start, int end) {
+    NgramTrie lastNode = getLastNode(ngram, start, end, root);
+    if (lastNode == null) {
+      return 0;
     }
 
-    Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
-    if (currentToken == null) {
-      currentToken = wordToID.get("<OOV>");
-      if (currentToken == null) {
-        return 0;
-      }
+    int childCount = 0;
+    Collection<NgramTrie> children = lastNode.getChildren();
+    for (NgramTrie child : children) {
+      childCount += child.getCount();
     }
+    return childCount;
 
-      NgramTrie nextNode = currentNode.getChild(currentToken);
-      if (nextNode == null) {
-        return 0;
-      } else {
-        return getSiblingCountByNode(arrayWithChildNgram, start + 1, end, nextNode);
-
-    }
   }
-
-  private int getSiblingCountByNode(String[] arrayWithChildNgram, int start, int end, int minfreq,
-                                    int maxfreq, NgramTrie currentNode) {
-
-    if (end - start == 1) {
-      return currentNode.getChildrenCount(1, minfreq, maxfreq);
-    }
-
-    Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
-    if (currentToken == null) {
-      currentToken = wordToID.get("<OOV>");
-      if (currentToken == null) {
-        return 0;
-      }
-    }
-
-      NgramTrie nextNode = currentNode.getChild(currentToken);
-      if (nextNode == null) {
-        return 0;
-      } else {
-        return getSiblingCountByNode(arrayWithChildNgram, start + 1, end, minfreq, maxfreq, nextNode);
-      }
-  }
-
 
   @Override
   public String[][] getSiblings(String... ngram) {
@@ -195,110 +125,79 @@ public class NgramDictionaryHashed implements NgramDictionary {
   }
 
   @Override
-  public String[][] getSiblings(String[] arrayWithChildNgram, int start, int end) {
+  public String[][] getSiblings(String[] ngram, int start, int end) {
 
-    String[][] result;
-
-    String[] siblings = getSiblingsByNode(arrayWithChildNgram, start, end, root);
-    if (siblings == null) {
+    if (end - start >= NUMBER_OF_LEVELS) {
       return null;
     }
 
-    result = new String[siblings.length][end - start + 1];
-    for (int i = 0; i < siblings.length; i++) {
-      System.arraycopy(arrayWithChildNgram, start, result[i], 0, end - start);
-      result[i][end - start] = siblings[i];
+    String[][] result;
+    NgramTrie lastNode = getLastNode(ngram, start, end, root);
+
+    if (lastNode == null) {
+      return null;
+    }
+
+    Integer id = wordToID.get(ngram[end - 1]);
+    if (id == null && wordToID.get("<OOV>") == null) {
+      return null;
+    } else if (id == null) {
+      id = wordToID.get("<OOV>");
+    }
+
+    lastNode = lastNode.getChild(id);
+    if (lastNode == null) {
+      return null;
+    }
+
+    Collection<NgramTrie> siblingsUnsorted = lastNode.getChildren();
+    NgramTrie[] siblings = new NgramTrie[siblingsUnsorted.size()];
+    siblings = siblingsUnsorted.toArray(siblings);
+    Arrays.sort(siblings);
+
+    String[] siblingsArray = new String[siblings.length];
+    int i = 0;
+    for (NgramTrie sibling : siblings) {
+      siblingsArray[i] = IDToWord.get(sibling.getId());
+      i++;
+    }
+
+    result = new String[siblingsArray.length][end - start + 1];
+    for (int j = 0; j < siblingsArray.length; j++) {
+      System.arraycopy(ngram, start, result[j], 0, end - start);
+      System.arraycopy(siblingsArray, j, result[j], end - start, 1);
     }
 
     return result;
   }
 
-  private String[] getSiblingsByNode(String[] arrayWithChildNgram, int start, int end,
-                                     NgramTrie currentNode) {
-
-    String[] result = null;
-    if (end - start == 1) {
-      Collection<NgramTrie> siblings = currentNode.getChildren();
-      String[] siblingsArray = new String[siblings.size()];
-      int i = 0;
-      for (NgramTrie sibling : siblings) {
-        siblingsArray[i] = IDToWord.get(sibling.getId());
-        i++;
-      }
-      return siblingsArray;
-    }
-
-    Integer currentToken = wordToID.get(arrayWithChildNgram[start]);
-    if (currentToken == null) {
-      currentToken = wordToID.get("<OOV>");
-      if (currentToken == null) {
-        return result;
-      }
-    }
-
-    NgramTrie nextNode = currentNode.getChild(currentToken);
-    if (nextNode == null) {
-      return result;
-    } else {
-      return getSiblingsByNode(arrayWithChildNgram, start + 1, end, nextNode);
-
-    }
+  @Override
+  public void add(String... ngram) {
+    add(ngram, 0, ngram.length);
   }
 
-  /**
-   * Add a new ngram to the dictionary (or increase its count by one)
-   *
-   * @param gram The ngram to add
-   */
   @Override
-  public void add(String... gram) {
-    add(gram, 0, gram.length);
-  }
-
-  /**
-   * Add a new ngram to the dictionary (or increase its count by one).
-   * The ngram is defined as a range of strings within a larger document
-   *
-   * @param gram   The document in which the ngram is located
-   * @param start Start of the ngram
-   * @param end   End of the ngram
-   */
-  @Override
-  public void add(String[] gram, Integer start, Integer end) {
+  public void add(String[] ngram, Integer start, Integer end) {
     /*for each gram level, check that this word is present
     If yes, proceed to its children
      */
     int[] gramInt = new int[end - start];
     for (int i = 0; i < end - start; i++) {
-      gramInt[i] = getWordID(gram[i + start]);
+      gramInt[i] = getWordID(ngram[i + start]);
     }
 
     root.addChildren(gramInt);
 
   }
 
-  /**
-   * Get the frequency of an ngram in the dictionary
-   *
-   * @param gram An ngram with length <= NUMBER_OF_LEVELS
-   * @return Its count
-   */
   @Override
-  public int get(String... gram) {
-    return get(gram, 0, gram.length);
+  public int get(String... ngram) {
+    return get(ngram, 0, ngram.length);
   }
 
-  /**
-   * Get the frequency of an ngram passed as a chunk of a document
-   *
-   * @param doc   A document
-   * @param start The start of the ngram in the document
-   * @param end   The end of the ngram in the document
-   * @return Its count
-   */
   @Override
-  public int get(String[] doc, int start, int end) {
-    Integer currentToken = wordToID.get(doc[start]);
+  public int get(String[] ngram, int start, int end) {
+    Integer currentToken = wordToID.get(ngram[start]);
     NgramTrie currentNode = root;
     if (currentToken == null) {
       currentToken = wordToID.get("<OOV>");
@@ -308,7 +207,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
     }
 
     for (int i = 0; i < end - start; i++) {
-      Integer id = wordToID.get(doc[i + start]);
+      Integer id = wordToID.get(ngram[i + start]);
       if (id == null) {
         id = wordToID.get("<OOV>");
         if (id == null) {
@@ -327,10 +226,10 @@ public class NgramDictionaryHashed implements NgramDictionary {
   }
 
   /**
-   * For each word, get its ID
+   * Get the integer ID of a word
    *
    * @param word The word to get ID of
-   * @return The ID
+   * @return The ID, or the <OOV>-tag-ID if current word not found and the vocabulary static
    */
   private int getWordID(String word) {
     Integer id = wordToID.get(word);
@@ -343,7 +242,7 @@ public class NgramDictionaryHashed implements NgramDictionary {
       } else {
         id = wordToID.get("<OOV>");
         if (id == null) {
-          System.err.println("Static vocabulary without the \"<OOV>\" tag cannot deal " +
+          System.err.println("[INFO] Static vocabulary without the \"<OOV>\" tag cannot deal " +
               "with words not in the vocabulary. Adding the \"<OOV>\" tag to the vocabulary.");
           id = vocabularySize;
           wordToID.put("<OOV>", id);
@@ -352,6 +251,62 @@ public class NgramDictionaryHashed implements NgramDictionary {
       }
     }
     return id;
+  }
+
+  /**
+   * Get the node of the to which the last element of the ngram is a child
+   * @param ngram An ngram
+   * @param start The beginning of the relevant ngram
+   * @param end The end of the relevant ngram
+   * @param currentNode The node at which the search should start
+   * @return The node to which the last element of the ngram is a child
+   */
+  private NgramTrie getLastNode(String[] ngram, int start, int end, NgramTrie currentNode) {
+    if (end - start == 1) {
+      return currentNode;
+    }
+
+    Integer currentToken = wordToID.get(ngram[start]);
+    if (currentToken == null) {
+      currentToken = wordToID.get("<OOV>");
+      if (currentToken == null) {
+        return null;
+      }
+    }
+
+    NgramTrie nextNode = currentNode.getChild(currentToken);
+    if (nextNode == null) {
+      return null;
+    } else {
+      return getLastNode(ngram, start + 1, end, nextNode);
+
+    }
+  }
+
+  /**
+   * Get the sum of ngram counts at a certain depth below a certain node
+   * @param depth How deep to progress below the current node
+   * @param node The current node
+   * @return The sum of counts of all ngrams that are children to the current node
+   *          and have length = current node length + depth
+   */
+  private int getNGramCountSum(int depth, NgramTrie node) {
+    int sum = 0;
+    if (depth == 1) {
+
+      Collection<NgramTrie> children = node.getChildren();
+      for (NgramTrie child : children) {
+        sum += child.getCount();
+      }
+
+      return sum;
+    } else {
+      Collection<NgramTrie> children = node.getChildren();
+      for (NgramTrie child : children) {
+        sum += getNGramCountSum(depth - 1, child);
+      }
+    }
+    return sum;
   }
 
 }

@@ -20,13 +20,12 @@ package opennlp.tools.languagemodel;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.Before;
+import org.junit.Test;
 
 import opennlp.tools.ngram.NgramDictionary;
 import opennlp.tools.ngram.NgramDictionaryCompressed;
 import opennlp.tools.ngram.NgramDictionaryHashed;
-
-import org.junit.Before;
-import org.junit.Test;
 
 public class NgramEstimatorTest {
 
@@ -45,8 +44,8 @@ public class NgramEstimatorTest {
       dict.put("C", 2);
       dict.put("D", 3);
 
-      ngramDictionaryCompressed = new NgramDictionaryCompressed(3, dict);
-      ngramDictionaryHashed = new NgramDictionaryHashed(dict);
+      ngramDictionaryCompressed = new NgramDictionaryCompressed(3, dict, false);
+      ngramDictionaryHashed = new NgramDictionaryHashed(5, dict);
 
       for (int i = 0; i < 4; i++) {
         ngramDictionaryHashed.add(new String[] {"A", "B", "C"});

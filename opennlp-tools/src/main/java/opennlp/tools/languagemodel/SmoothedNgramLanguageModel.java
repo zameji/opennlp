@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Set;
 
 import opennlp.tools.ngram.NgramDictionary;
 import opennlp.tools.ngram.NgramDictionaryCompressed;
@@ -32,18 +32,17 @@ import opennlp.tools.util.Cache;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.StringList;
 import opennlp.tools.util.model.BaseModel;
-import opennlp.tools.util.model.SerializableArtifact;
 
-public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel, SerializableArtifact {
+public class SmoothedNgramLanguageModel extends BaseModel implements LanguageModel {
 
-  private static final int DEFAULT_N = 3;
   private static final String DEFAULT_SMOOTHING = "Chen-Goodman";
-  private final boolean compressDictionary;
+  private static final int PREDICTION_CONSIDERED_OPTIONS = 10;
   private final NgramDictionary ngrams;
-  private Map<String, Integer> vocabulary;
   private final int n;
-  private final Cache<String[], Double> LRUCache;
+  private final Cache<String[], Double> LRUCacheProb;
+  private final Cache<String[], String[]> LRUCachePredict;
   private final NgramEstimator ngramEstimator;
+  private Map<String, Integer> vocabulary;
 
   public SmoothedNgramLanguageModel(String language, int n, String smoothing,
                                     Boolean compressDictionary, NgramDictionary ngrams,
@@ -60,20 +59,18 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
       this.ngramEstimator = new NgramEstimator(smoothing, ngrams, n);
     }
 
-    this.compressDictionary = compressDictionary;
-
     //todo: make the cache capacity smarter (e.g. cover x% of the data)
-    this.LRUCache = new Cache<>(1000);
-
+    this.LRUCacheProb = new Cache<>(1000);
+    this.LRUCachePredict = new Cache<>(1000);
   }
 
   /**
    * Train an ngram model with predefined smoothing
    *
-   * @param in
-   * @param factory
-   * @return
-   * @throws IOException
+   * @param in       A stream of tokenized documents that can be reset
+   * @param factory The ngram language model factory
+   * @return A trained model
+   * @throws IOException If the stream cannot be read
    */
   public static SmoothedNgramLanguageModel train(ObjectStream<String[]> in,
                                                  NgramLMFactory factory) throws IOException {
@@ -113,6 +110,13 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
       @Override
       public int compareTo(Token other) {
         return (this.count - other.count);
+      }
+
+      @Override
+      public boolean equals(Object other){
+        if (!(other instanceof Token)) return false;
+
+        return (this.count == ((Token) other).count);
       }
     }
 
@@ -171,19 +175,18 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
    * @throws IOException if it fails to read the input
    */
   private static NgramDictionary collectNgrams(ObjectStream<String[]> in, Map<String,
-      Integer> dictionary, Integer ngramSize, Boolean compressedDictionary, Boolean staticVocabulary) throws IOException {
+      Integer> dictionary, Integer ngramSize, Boolean compressedDictionary, Boolean staticVocabulary)
+      throws IOException {
 
     NgramDictionary ngrams;
 
-    //We make the vocabulary static, because we've already seen all the items in the stream
     if (compressedDictionary) {
       ngrams = new NgramDictionaryCompressed(ngramSize, dictionary, staticVocabulary);
     } else {
-      ngrams = new NgramDictionaryHashed(dictionary, staticVocabulary);
+      ngrams = new NgramDictionaryHashed(ngramSize, dictionary, staticVocabulary);
     }
 
     String[] next = in.read();
-
     while (next != null) {
 
       for (int n = ngramSize; n > 0; n--) {
@@ -202,7 +205,8 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
         ngramsCompressible.compress();
         ngrams = ngramsCompressible;
       } catch (Exception e) {
-        System.err.println(e.getMessage() + "\n" + Arrays.toString(e.getStackTrace()));
+        System.err.println("Could not compress the n-gram dictionary" + e.getMessage() +
+            "\n" + Arrays.toString(e.getStackTrace()));
       }
     }
 
@@ -223,11 +227,19 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
 
   @Override
   public double calculateProbability(String... tokens) {
-    if (LRUCache.containsKey(tokens)) {
-      return LRUCache.get(tokens);
+
+    if (tokens == null) {
+      return 0;
+    }
+    if (tokens.length == 0) {
+      return 0;
+    }
+
+    if (LRUCacheProb.containsKey(tokens)) {
+      return LRUCacheProb.get(tokens);
     }
     double prob = ngramEstimator.calculateProbability(tokens);
-    LRUCache.put(tokens, prob);
+    LRUCacheProb.put(tokens, prob);
     return prob;
   }
 
@@ -281,34 +293,81 @@ public class SmoothedNgramLanguageModel extends BaseModel implements LanguageMod
       return null;
     }
 
+    if (LRUCachePredict.containsKey(tokens)) {
+      return LRUCachePredict.get(tokens);
+    }
+
     String[] result = null;
-    String[][] possibleContinuations = ngrams.getSiblings(tokens);
+    String[][] possibleContinuations = getPossibleContinuations(tokens, 0, tokens.length);
 
     int attempt = 1;
-    while (possibleContinuations == null) {
-      if (attempt > tokens.length) {
-        return result;
-      }
-      possibleContinuations = ngrams.getSiblings(tokens, attempt, tokens.length);
+    while (possibleContinuations.length < PREDICTION_CONSIDERED_OPTIONS && attempt < tokens.length) {
+
+      String[][] lowerOrderContinuations = getPossibleContinuations(tokens, attempt, tokens.length);
+      String[][] combined = Arrays.copyOf(possibleContinuations,
+          possibleContinuations.length + lowerOrderContinuations.length);
+      System.arraycopy(lowerOrderContinuations, 0, combined, possibleContinuations.length,
+          lowerOrderContinuations.length);
+      possibleContinuations = combined;
       attempt++;
     }
 
+    // We'll only check the most frequent options
     double maxProbability = Double.MIN_VALUE;
-    for (int i = 0; i < possibleContinuations.length; i++) {
+    for (int i = 0; i < Math.min(PREDICTION_CONSIDERED_OPTIONS, possibleContinuations.length); i++) {
       String[] continuation = possibleContinuations[i];
       double prob = calculateProbability(continuation);
 
       if (prob > maxProbability) {
-        result = continuation;
+        result = new String[] {continuation[continuation.length - 1]};
         maxProbability = prob;
       }
     }
+    LRUCachePredict.put(tokens, result);
 
     return result;
   }
 
-  @Override
-  public Class<?> getArtifactSerializerClass() {
-    return null;
+  /**
+   * Get the possible continuations of an ngram
+   * @param tokens A text containing the target ngram
+   * @param start The start of the ngram
+   * @param end The end of the ngram
+   * @return Possible ways this ngram could continue. If n-gram length is 1 end it is not found
+   *          in the dictionary, the most frequent unigram will be returned
+   */
+  private String[][] getPossibleContinuations(String[] tokens, int start, int end) {
+    String[][] possibleContinuations = ngrams.getSiblings(tokens, start, end);
+
+    if (possibleContinuations == null) {
+      if (end - start == 1) {
+        possibleContinuations = new String[1][1];
+        Set<String> unigrams = vocabulary.keySet();
+        int maxFreq = Integer.MIN_VALUE;
+
+        for (String unigram : unigrams) {
+          int currentFreq = ngrams.get(unigram);
+          if (currentFreq > maxFreq) {
+            possibleContinuations[0][0] = unigram;
+            maxFreq = currentFreq;
+          }
+        }
+      } else {
+        possibleContinuations = new String[0][0];
+      }
+    }
+
+    if (possibleContinuations.length > 0) {
+      String[][] continuationFullLenght = new String[possibleContinuations.length][tokens.length + 1];
+      for (int i = 0; i < continuationFullLenght.length; i++) {
+        System.arraycopy(tokens, 0, continuationFullLenght[i], 0, tokens.length);
+        continuationFullLenght[i][tokens.length] =
+            possibleContinuations[i][possibleContinuations[i].length - 1];
+      }
+      possibleContinuations = continuationFullLenght;
+    }
+
+    return possibleContinuations;
   }
+
 }

@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.javamex.classmexer.MemoryUtil;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import opennlp.tools.formats.masc.MascDocumentStream;
 import opennlp.tools.formats.masc.MascNamedEntitySampleStream;
@@ -33,254 +36,477 @@ import opennlp.tools.util.ObjectStream;
 
 import static org.junit.Assert.fail;
 
-import com.javamex.classmexer.MemoryUtil;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 public class SmoothedNgramLanguageModelTest {
 
-  @Test
-  public void train_and_calculate_probability() {
+  class TokenStream extends FilterObjectStream<NameSample, String[]> {
+    public TokenStream(ObjectStream<NameSample> samples) {
+      super(samples);
+    }
 
-    class TokenStream extends FilterObjectStream<NameSample, String[]> {
-      public TokenStream(ObjectStream<NameSample> samples) {
-        super(samples);
-      }
-
-      public String[] read() {
-        try {
-          NameSample next = samples.read();
-          if (next == null) {
-            return null;
-          }
-          return next.getSentence();
-
-        } catch (IOException e) {
+    public String[] read() {
+      try {
+        NameSample next = samples.read();
+        if (next == null) {
           return null;
         }
-      }
+        return next.getSentence();
 
-      public void reset() {
-        try {
-          samples.reset();
-        } catch (Exception e) {
-          System.err.println("Failed");
-        }
+      } catch (IOException e) {
+        return null;
       }
     }
 
-    try {
-      int reps = 50;
+    public void reset() {
+      try {
+        samples.reset();
+      } catch (Exception e) {
+        System.err.println("Failed");
+      }
+    }
+  }
 
-      File directory = new File("C:/projects/OpenNLP/MASC/data");
+  final static int DEPTH = 5;
+  static ObjectStream<NameSample> trainTokens;
+  static int REPS = 1;
+  static int SAMPLE_LIMIT = 10;
+  static boolean DEBUG = true;
+  static List<String[]> gramList;
+  static List<List> testLists;
+  static long gramCount;
+  static int wordCount = 0;
+  static String[] SMOOTHING = {"maximum likelihood", "chen"};
+
+  @BeforeClass
+  public static void doBeforeClass() {
+
+    System.out.println("Running @BeforeClass");
+    try {
+      File directory = new File("C:/projects/OpenNLP/MASC/test");
 //      File directory = new File(this.getClass().getResource(
 //          "/opennlp/tools/formats/masc/").getFile());
       FileFilter fileFilter = pathname -> pathname.getName().contains("");
-      ObjectStream<NameSample> trainTokens = new MascNamedEntitySampleStream(
+      trainTokens = new MascNamedEntitySampleStream(
           new MascDocumentStream(directory,
               true, fileFilter));
 
-      System.out.println("Training");
-      System.out.println("_____________");
-
-      System.out.println("BASELINE");
-      System.out.println("********");
-      NameSample next = trainTokens.read();
-      NGramLanguageModel baseline = new NGramLanguageModel();
-      int wordsRead = 0;
-
-      long start = System.currentTimeMillis();
-      while (next != null) {
-        String[] nextStrings = next.getSentence();
-        wordsRead += nextStrings.length;
-        for (int n = 3; n > 0; n--) {
-          for (int i = 0; i + n <= nextStrings.length; i++) {
-            String[] gram = new String[n];
-            System.arraycopy(nextStrings, i, gram, 0, n);
-            baseline.add(gram);
-          }
-        }
-
-        next = trainTokens.read();
-      }
-      long end = System.currentTimeMillis();
-      System.out.println(wordsRead + " words read in " + (end - start) / 1000.0 + "seconds.\n" +
-          "Speed: " + wordsRead / ((end - start) / 1000.0) + " wps");
-
       trainTokens.reset();
-      List<String[]> gramList = new ArrayList<>();
+      gramList = new ArrayList<>();
+      NameSample next = trainTokens.read();
       next = trainTokens.read();
       while (next != null) {
         String[] nextStrings = next.getSentence();
-        for (int n = 3; n > 0; n--) {
+        wordCount += nextStrings.length;
+        for (int n = DEPTH; n > 0; n--) {
           for (int i = 0; i + n <= nextStrings.length; i++) {
             String[] gram = new String[n];
             System.arraycopy(nextStrings, i, gram, 0, n);
             gramList.add(gram);
           }
         }
+
         next = trainTokens.read();
       }
 
-      List<String[]> unigramList = new ArrayList<>();
-      List<String[]> bigramList = new ArrayList<>();
-      List<String[]> trigramList = new ArrayList<>();
+      testLists = new ArrayList<>();
+      for (int n = 0; n <= DEPTH; n++) {
+        List<String[]> l = new ArrayList<>();
+        testLists.add(l);
+      }
+
       for (String[] gram : gramList) {
-        switch (gram.length) {
-          case 1:
-            unigramList.add(gram);
-            break;
-          case 2:
-            bigramList.add(gram);
-            break;
-          case 3:
-            trigramList.add(gram);
-            break;
-        }
-
-      }
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < unigramList.size(); i++) {
-          double x = baseline.calculateProbability(unigramList.get(i));
+        if (gram.length <= DEPTH) {
+          testLists.get(gram.length - 1).add(gram);
         }
       }
-      end = System.currentTimeMillis();
-      System.out.println("Unigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) +
-          "us" + " per unigram");
 
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < bigramList.size(); i++) {
-          double x = baseline.calculateProbability(bigramList.get(i));
-        }
+      gramCount = 0;
+      for (int gram = 1; gram <= DEPTH; gram++) {
+        gramCount += testLists.get(gram - 1).size();
       }
-      end = System.currentTimeMillis();
-      System.out.println("Bigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us " +
-          "per bigram");
 
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < trigramList.size(); i++) {
-          double x = baseline.calculateProbability(trigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-
-      System.out.println("Trigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us" +
-          " " +
-          "per trigram");
-
-      long es = MemoryUtil.deepMemoryUsageOf(baseline, MemoryUtil.VisibilityFilter.ALL);
-      System.out.println("Estimated space: " + es + ", i.e. " + es / gramList.size() + "bytes/gram");
-
-      System.out.println("___________________________________");
-      System.out.println("TRIE-COMPRESSED");
-      System.out.println("********");
-
-      trainTokens.reset();
-
-      SmoothedNgramLanguageModel model = null;
-      start = System.currentTimeMillis();
-      model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens), new NgramLMFactory(
-          "en", 3,
-          "none", true));
-      end = System.currentTimeMillis();
-      trainTokens.reset();
-
-      System.out.println(wordsRead + " words read in " + (end - start) / 1000.0 + "seconds.\n" +
-          "Speed: " + wordsRead / ((end - start) / 1000.0) + " wps");
-
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < unigramList.size(); i++) {
-          double x = model.calculateProbability(unigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-
-      System.out.println("Unigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) +
-          "us" + " per unigram");
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < bigramList.size(); i++) {
-          double x = model.calculateProbability(bigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-      System.out.println("Bigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us " +
-          "per bigram");
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < trigramList.size(); i++) {
-          double x = model.calculateProbability(trigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-      System.out.println("Trigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us" +
-          " per trigram");
-
-      es = MemoryUtil.deepMemoryUsageOf(model, MemoryUtil.VisibilityFilter.ALL);
-      System.out.println("Estimated space: " + es + ", i.e. " + es / gramList.size() + "bytes/gram");
-
-      System.out.println("___________________________________");
-      System.out.println("TRIE-RAW");
-      System.out.println("********");
-
-      start = System.currentTimeMillis();
-      model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens), new NgramLMFactory(
-          "en", 3,
-          "none", false));
-      end = System.currentTimeMillis();
-      trainTokens.reset();
-
-      System.out.println(wordsRead + " words read in " + (end - start) / 1000.0 + "seconds.\n" +
-          "Speed: " + wordsRead / ((end - start) / 1000.0) + " wps");
-
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < unigramList.size(); i++) {
-          double x = model.calculateProbability(unigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-
-      System.out.println("Unigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) +
-          "us" + " per unigram");
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < bigramList.size(); i++) {
-          double x = model.calculateProbability(bigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-      System.out.println("Bigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us " +
-          "per bigram");
-
-      start = System.currentTimeMillis();
-      for (int j = 0; j < reps; j++) {
-        for (int i = 0; i < trigramList.size(); i++) {
-          double x = model.calculateProbability(trigramList.get(i));
-        }
-      }
-      end = System.currentTimeMillis();
-      System.out.println("Trigram performace: " + (end - start) * 1000.0 / (reps * unigramList.size()) + "us" +
-          " per trigram");
-
-      es = MemoryUtil.deepMemoryUsageOf(model, MemoryUtil.VisibilityFilter.ALL);
-      System.out.println("Estimated space: " + es + ", i.e. " + es / gramList.size() + "bytes/gram");
-
-    } catch (Exception e) {
-      System.err.println(e.getMessage());
-      System.err.println(Arrays.toString(e.getStackTrace()));
-      fail("Exception raised");
+    } catch (IOException e) {
+      fail("Could not preprocess the corpus");
     }
   }
+
+  @Test
+  public void baseline_predict_next() {
+
+    try {
+      trainTokens.reset();
+
+      NameSample next = trainTokens.read();
+      NGramLanguageModel model = new NGramLanguageModel();
+
+      long start = System.nanoTime();
+      while (next != null) {
+        String[] nextStrings = next.getSentence();
+
+        for (int n = DEPTH; n > 0; n--) {
+          for (int i = 0; i + n <= nextStrings.length; i++) {
+            String[] gram = new String[n];
+            System.arraycopy(nextStrings, i, gram, 0, n);
+            model.add(gram);
+          }
+        }
+        next = trainTokens.read();
+      }
+      long end = System.nanoTime();
+      System.out.println(wordCount + " words read in " + (end - start) / 1000000000.0 + "seconds" +
+          ".\nSpeed: " + wordCount / ((end - start) / 1000000000.0) + " w/s");
+
+      for (int gram = 2; gram < DEPTH; gram++) {
+        int correct = 0;
+        int processed = 0;
+        String[] blackHole = new String[1];
+        start = System.nanoTime();
+        for (int j = 0; j < REPS; j++) {
+          int limit;
+          if (DEBUG) {
+            limit = SAMPLE_LIMIT;
+          } else {
+            limit = testLists.get(gram - 1).size();
+          }
+          for (int i = 0; i < limit; i++) {
+            String[] test = (String[]) testLists.get(gram - 1).get(i);
+            blackHole = model.predictNextTokens(Arrays.copyOf(test, test.length - 1));
+            if (blackHole[blackHole.length - 1].equals(test[test.length - 1])) {
+              correct++;
+            }
+            processed++;
+          }
+        }
+        end = System.nanoTime();
+        System.out.println(gram + "-gram performace: " + (end - start) /
+            (1000.0 * REPS * testLists.get(gram - 1).size()) +
+            "us" + " per " + gram + "-gram;\n Accuracy: " + (((double) correct) / processed) +
+            "\n sample prediction" + Arrays.toString(blackHole));
+      }
+
+      System.out.println("I am very " + model.predictNextTokens("I", "am", "very")[0]);
+
+    } catch (IOException e) {
+      fail("Failed baseline");
+    }
+  }
+
+  @Test
+  public void baseline_calculate_probability() {
+
+    try {
+      trainTokens.reset();
+
+      NameSample next = trainTokens.read();
+      NGramLanguageModel model = new NGramLanguageModel();
+
+      long start = System.nanoTime();
+      while (next != null) {
+        String[] nextStrings = next.getSentence();
+
+        for (int n = DEPTH; n > 0; n--) {
+          for (int i = 0; i + n <= nextStrings.length; i++) {
+            String[] gram = new String[n];
+            System.arraycopy(nextStrings, i, gram, 0, n);
+            model.add(gram);
+          }
+        }
+        next = trainTokens.read();
+      }
+      long end = System.nanoTime();
+      System.out.println(wordCount + " words read in " + (end - start) / 1000000000.0 + "seconds" +
+          ".\nSpeed: " + wordCount / ((end - start) / 1000000000.0) + " w/s");
+
+      for (int gram = 1; gram <= DEPTH; gram++) {
+        double blackHole = 0;
+        start = System.nanoTime();
+        for (int j = 0; j < REPS; j++) {
+          int limit;
+          if (DEBUG) {
+            limit = SAMPLE_LIMIT;
+          } else {
+            limit = testLists.get(gram - 1).size();
+          }
+          for (int i = 0; i < limit; i++) {
+            blackHole = model.calculateProbability((String[]) testLists.get(gram - 1).get(i));
+          }
+        }
+        end = System.nanoTime();
+        System.out.println(gram + "-gram performace: " + (end - start) /
+            (1000.0 * REPS * testLists.get(gram - 1).size()) +
+            "us" + " per " + gram + "-gram;\n sample probability" + blackHole);
+      }
+
+      long es = MemoryUtil.deepMemoryUsageOf(model, MemoryUtil.VisibilityFilter.ALL);
+      System.out.println("Estimated space: " + es + ", i.e. " + es / gramCount + "bytes/gram");
+
+    } catch (IOException e) {
+      fail("Failed baseline");
+    }
+  }
+
+  @Test
+  public void compressed_probability() {
+    for (String smoothing : SMOOTHING) {
+      try {
+
+        trainTokens.reset();
+
+        SmoothedNgramLanguageModel model = null;
+        long start = System.nanoTime();
+        model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens), new NgramLMFactory(
+            "en", DEPTH,
+            smoothing, true, 1));
+        long end = System.nanoTime();
+        trainTokens.reset();
+
+        System.out.println(wordCount + " words read in " + (end - start) / 1000000000.0 +
+            "seconds" +
+            ".\n" +
+            "Speed: " + wordCount / ((end - start) / 1000000000.0) + " w/s");
+
+        for (int gram = 1; gram <= DEPTH; gram++) {
+
+          start = System.nanoTime();
+          double blackHole = 0;
+          for (int j = 0; j < REPS; j++) {
+            int limit;
+            if (DEBUG) {
+              limit = SAMPLE_LIMIT;
+            } else {
+              limit = testLists.get(gram - 1).size();
+            }
+            for (int i = 0; i < limit; i++) {
+              blackHole = model.calculateProbability((String[]) testLists.get(gram - 1).get(i));
+            }
+          }
+          end = System.nanoTime();
+          System.out.println(gram + "-gram performace: " + (end - start) /
+              (1000.0 * REPS * testLists.get(gram - 1).size()) +
+              "us" + " per " + gram + "-gram;\n sample probability" + blackHole);
+
+        }
+
+        long es = MemoryUtil.deepMemoryUsageOf(model, MemoryUtil.VisibilityFilter.ALL);
+        System.out.println("Estimated space: " + es + ", i.e. " + es / gramCount + "bytes/gram");
+
+      } catch (IOException e) {
+        fail("Failed compressed");
+      }
+    }
+  }
+
+  @Test
+  public void compressed_next_tokens() {
+    for (String smoothing : SMOOTHING) {
+      try {
+
+        trainTokens.reset();
+
+        SmoothedNgramLanguageModel model = null;
+        long start = System.nanoTime();
+        model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens), new NgramLMFactory(
+            "en", DEPTH,
+            smoothing, true, 1));
+        long end = System.nanoTime();
+        trainTokens.reset();
+
+        for (int gram = 2; gram < DEPTH; gram++) {
+          int correct = 0;
+          int processed = 0;
+          String[] blackHole = new String[1];
+          start = System.nanoTime();
+          for (int j = 0; j < REPS; j++) {
+            int limit;
+            if (DEBUG) {
+              limit = SAMPLE_LIMIT;
+            } else {
+              limit = testLists.get(gram - 1).size();
+            }
+            for (int i = 0; i < limit; i++) {
+              String[] test = (String[]) testLists.get(gram - 1).get(i);
+              blackHole = model.predictNextTokens(Arrays.copyOf(test, test.length - 1));
+              if (blackHole[blackHole.length - 1].equals(test[test.length - 1])) {
+                correct++;
+              }
+              processed++;
+            }
+          }
+          end = System.nanoTime();
+          System.out.println(gram + "-gram performace: " + (end - start) /
+              (1000.0 * REPS * testLists.get(gram - 1).size()) +
+              "us" + " per " + gram + "-gram;\n Accuracy: " + (((double) correct) / processed) +
+              "\n sample prediction" + Arrays.toString(blackHole));
+        }
+
+        System.out.println("I am very " + model.predictNextTokens("I", "am", "very")[0]);
+
+      } catch (IOException e) {
+        fail("Failed compressed");
+      }
+    }
+  }
+
+  @Test
+  public void raw_probability() {
+    for (String smoothing : SMOOTHING) {
+      try {
+
+        trainTokens.reset();
+//      long wait = System.currentTimeMillis();
+//      while (System.currentTimeMillis() - wait < 15000){
+//        int s = 0;
+//      }
+        long start = System.nanoTime();
+        LanguageModel model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens),
+            new NgramLMFactory(
+                "en", DEPTH,
+                smoothing, false, 1));
+        long end = System.nanoTime();
+
+        System.out.println(wordCount + " words read in " + (end - start) / 1000000000.0 + "seconds.\n" +
+            "Speed: " + wordCount / ((end - start) / 1000000000.0) + " wps");
+
+        for (int gram = 1; gram <= DEPTH; gram++) {
+
+          start = System.nanoTime();
+          double blackHole = 0;
+          for (int j = 0; j < REPS; j++) {
+            int limit;
+            if (DEBUG) {
+              limit = SAMPLE_LIMIT;
+            } else {
+              limit = testLists.get(gram - 1).size();
+            }
+            for (int i = 0; i < limit; i++) {
+              blackHole = model.calculateProbability((String[]) testLists.get(gram - 1).get(i));
+            }
+          }
+          end = System.nanoTime();
+          System.out.println(gram + "-gram performace: " + (end - start) /
+              (1000.0 * REPS * testLists.get(gram - 1).size()) +
+              "us" + " per " + gram + "-gram;\n sample probability" + blackHole);
+        }
+
+        long es = MemoryUtil.deepMemoryUsageOf(model, MemoryUtil.VisibilityFilter.ALL);
+        System.out.println("Estimated space: " + es + ", i.e. " + es / gramCount + "bytes/gram");
+
+      } catch (Exception e) {
+        System.out.println(e.getMessage());
+        System.out.println(Arrays.toString(e.getStackTrace()));
+        fail("Failed raw");
+
+      }
+    }
+  }
+
+  @Test
+  public void raw_next_tokens() {
+    for (String smoothing : SMOOTHING) {
+      try {
+
+        trainTokens.reset();
+//      long wait = System.currentTimeMillis();
+//      while (System.currentTimeMillis() - wait < 15000){
+//        int s = 0;
+//      }
+        long start = System.nanoTime();
+        LanguageModel model = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens),
+            new NgramLMFactory(
+                "en", DEPTH,
+                smoothing, false, 1));
+        long end = System.nanoTime();
+
+        System.out.println(wordCount + " words read in " + (end - start) / 1000000000.0 + "seconds.\n" +
+            "Speed: " + wordCount / ((end - start) / 1000000000.0) + " wps");
+
+        for (int gram = 2; gram < DEPTH; gram++) {
+          int correct = 0;
+          int processed = 0;
+          String[] blackHole = new String[1];
+          start = System.nanoTime();
+          for (int j = 0; j < REPS; j++) {
+            int limit;
+            if (DEBUG) {
+              limit = SAMPLE_LIMIT;
+            } else {
+              limit = testLists.get(gram - 1).size();
+            }
+            for (int i = 0; i < limit; i++) {
+              String[] test = (String[]) testLists.get(gram - 1).get(i);
+              blackHole = model.predictNextTokens(Arrays.copyOf(test, test.length - 1));
+              if (blackHole[blackHole.length - 1].equals(test[test.length - 1])) {
+                correct++;
+              }
+              processed++;
+            }
+          }
+          end = System.nanoTime();
+          System.out.println(gram + "-gram performace: " + (end - start) /
+              (1000.0 * REPS * testLists.get(gram - 1).size()) +
+              "us" + " per " + gram + "-gram;\n Accuracy: " + (((double) correct) / processed) +
+              "\n sample prediction" + Arrays.toString(blackHole));
+        }
+
+        System.out.println("I am very " + model.predictNextTokens("I", "am", "very")[0]);
+
+      } catch (Exception e) {
+        System.out.println(e.getMessage());
+        System.out.println(Arrays.toString(e.getStackTrace()));
+        fail("Failed raw");
+      }
+    }
+  }
+
+  @Test
+  public void raw_compressed_equality() {
+    for (String smoothing : SMOOTHING) {
+      try {
+
+        trainTokens.reset();
+        SmoothedNgramLanguageModel model = null;
+        long start = System.nanoTime();
+        LanguageModel modelCompressed =
+            SmoothedNgramLanguageModel.train(new TokenStream(trainTokens), new NgramLMFactory(
+                "en", DEPTH,
+                smoothing, true, 1));
+
+        trainTokens.reset();
+
+        LanguageModel modelRaw = SmoothedNgramLanguageModel.train(new TokenStream(trainTokens),
+            new NgramLMFactory(
+                "en", DEPTH,
+                smoothing, false, 1));
+        long end = System.nanoTime();
+
+        for (int gram = 1; gram <= DEPTH; gram++) {
+
+          start = System.nanoTime();
+          double raw = 0;
+          double compressed = 0;
+          int match = 0;
+          int mismatch = 0;
+
+          for (int i = 0; i < testLists.get(gram - 1).size(); i++) {
+            raw = modelRaw.calculateProbability((String[]) testLists.get(gram - 1).get(i));
+            compressed = modelCompressed.calculateProbability((String[]) testLists.get(gram - 1).get(i));
+
+            if (raw == compressed) {
+              match++;
+            } else {
+              mismatch++;
+            }
+          }
+
+          end = System.nanoTime();
+          System.out.println(gram + "-gram performace: " + match + "/" + (match + mismatch) + ", i.e." +
+              (double) match / ((double) match + mismatch) + "%");
+        }
+
+      } catch (IOException e) {
+        fail("Failed compressed");
+      }
+    }
+  }
+
 
 }
